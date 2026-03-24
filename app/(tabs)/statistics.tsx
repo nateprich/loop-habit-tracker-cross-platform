@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
+import { StyleSheet, ActivityIndicator, Pressable, Alert, ScrollView } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useHabits } from '@/context/HabitContext';
 import { formatDate } from '@/database/completions';
 import { exportHabitsToCSV } from '@/services/export';
+import WeeklyChart from '@/components/WeeklyChart';
+import HabitStreakList from '@/components/HabitStreakList';
 
 export default function StatisticsScreen() {
   const colorScheme = useColorScheme();
@@ -34,16 +36,16 @@ export default function StatisticsScreen() {
 
   const totalHabits = habits.length;
 
-  const bestStreakHabit = habits.reduce<{ name: string; streak: number } | null>(
-    (best, h) => (!best || h.streak > best.streak ? { name: h.name, streak: h.streak } : best),
-    null
-  );
-
   const todayStr = formatDate(new Date());
   const completedToday = habits.filter(
     (h) => completions.get(h.id)?.has(todayStr)
   ).length;
   const completionPct = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
+
+  const streakHabits = habits
+    .map((h) => ({ name: h.name, color: h.color, streak: h.streak }))
+    .sort((a, b) => b.streak - a.streak);
+  const maxStreak = streakHabits.length > 0 ? streakHabits[0].streak : 0;
 
   if (totalHabits === 0) {
     return (
@@ -56,39 +58,56 @@ export default function StatisticsScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <Text style={[styles.cardTitle, { color: colors.secondaryText }]}>
-          Total Habits
-        </Text>
-        <Text style={[styles.cardValue, { color: colors.tint }]}>{totalHabits}</Text>
-      </View>
-
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <Text style={[styles.cardTitle, { color: colors.secondaryText }]}>
-          Current Best Streak
-        </Text>
-        <Text style={[styles.cardValue, { color: colors.tint }]}>
-          {bestStreakHabit && bestStreakHabit.streak > 0
-            ? `${bestStreakHabit.streak} day${bestStreakHabit.streak !== 1 ? 's' : ''}`
-            : 'No streaks yet'}
-        </Text>
-        {bestStreakHabit && bestStreakHabit.streak > 0 && (
-          <Text style={[styles.cardSubtitle, { color: colors.secondaryText }]}>
-            {bestStreakHabit.name}
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.container}>
+      <View style={[styles.summaryRow]}>
+        <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.secondaryText }]}>
+            Today
           </Text>
-        )}
+          <Text style={[styles.cardValue, { color: colors.tint }]}>{completionPct}%</Text>
+          <Text style={[styles.cardSubtitle, { color: colors.secondaryText }]}>
+            {completedToday}/{totalHabits}
+          </Text>
+        </View>
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.secondaryText }]}>
+            Best Streak
+          </Text>
+          <Text style={[styles.cardValue, { color: colors.tint }]}>
+            {maxStreak > 0 ? `${maxStreak}` : '0'}
+          </Text>
+          <Text style={[styles.cardSubtitle, { color: colors.secondaryText }]}>
+            {maxStreak !== 1 ? 'days' : 'day'}
+          </Text>
+        </View>
+
+        <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.cardTitle, { color: colors.secondaryText }]}>
+            Habits
+          </Text>
+          <Text style={[styles.cardValue, { color: colors.tint }]}>{totalHabits}</Text>
+          <Text style={[styles.cardSubtitle, { color: colors.secondaryText }]}>
+            tracked
+          </Text>
+        </View>
       </View>
 
-      <View style={[styles.card, { backgroundColor: colors.card }]}>
-        <Text style={[styles.cardTitle, { color: colors.secondaryText }]}>
-          Today's Completion
-        </Text>
-        <Text style={[styles.cardValue, { color: colors.tint }]}>{completionPct}%</Text>
-        <Text style={[styles.cardSubtitle, { color: colors.secondaryText }]}>
-          {completedToday} of {totalHabits} habit{totalHabits !== 1 ? 's' : ''}
-        </Text>
-      </View>
+      <WeeklyChart
+        habits={habits}
+        completions={completions}
+        barColor={colors.tint}
+        secondaryTextColor={colors.secondaryText}
+        cardColor={colors.card}
+      />
+
+      <HabitStreakList
+        habits={streakHabits}
+        maxStreak={maxStreak}
+        secondaryTextColor={colors.secondaryText}
+        textColor={colors.text}
+        cardColor={colors.card}
+      />
 
       <Pressable
         style={[styles.exportButton, { backgroundColor: colors.tint }]}
@@ -99,15 +118,15 @@ export default function StatisticsScreen() {
           {exporting ? 'Exporting...' : 'Export to CSV'}
         </Text>
       </Pressable>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     padding: 16,
     gap: 12,
+    paddingBottom: 32,
   },
   centered: {
     flex: 1,
@@ -119,28 +138,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
   },
-  card: {
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  summaryCard: {
+    flex: 1,
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
+    alignItems: 'center',
   },
   cardTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '500',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   cardValue: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
   },
   cardSubtitle: {
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 11,
+    marginTop: 1,
   },
   exportButton: {
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 4,
   },
   exportButtonText: {
     color: '#fff',
