@@ -1,6 +1,13 @@
+import { useEffect } from 'react';
 import { StyleSheet, View as RNView } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { getLast7Dates } from '@/database/completions';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withDelay,
+  withSpring,
+} from 'react-native-reanimated';
 
 interface WeeklyChartProps {
   habits: { id: string }[];
@@ -11,6 +18,48 @@ interface WeeklyChartProps {
 }
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function AnimatedBarColumn({
+  pct,
+  label,
+  barColor,
+  secondaryTextColor,
+  delay,
+}: {
+  pct: number;
+  label: string;
+  barColor: string;
+  secondaryTextColor: string;
+  delay: number;
+}) {
+  const height = useSharedValue(0);
+
+  useEffect(() => {
+    height.value = withDelay(
+      delay,
+      withSpring(Math.max(pct * 100, 2), { damping: 12, stiffness: 100 })
+    );
+  }, [pct, delay, height]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    height: `${height.value}%`,
+    backgroundColor: barColor,
+  }));
+
+  return (
+    <RNView style={styles.barColumn}>
+      <Text style={[styles.pctLabel, { color: secondaryTextColor }]}>
+        {Math.round(pct * 100)}%
+      </Text>
+      <RNView style={styles.barTrack}>
+        <Animated.View style={[styles.barFill, animatedStyle]} />
+      </RNView>
+      <Text style={[styles.dayLabel, { color: secondaryTextColor }]}>
+        {label}
+      </Text>
+    </RNView>
+  );
+}
 
 export default function WeeklyChart({
   habits,
@@ -37,26 +86,15 @@ export default function WeeklyChart({
         Last 7 Days
       </Text>
       <RNView style={styles.chartRow}>
-        {data.map((d) => (
-          <RNView key={d.date} style={styles.barColumn}>
-            <Text style={[styles.pctLabel, { color: secondaryTextColor }]}>
-              {Math.round(d.pct * 100)}%
-            </Text>
-            <RNView style={styles.barTrack}>
-              <RNView
-                style={[
-                  styles.barFill,
-                  {
-                    backgroundColor: barColor,
-                    height: `${Math.max(d.pct * 100, 2)}%`,
-                  },
-                ]}
-              />
-            </RNView>
-            <Text style={[styles.dayLabel, { color: secondaryTextColor }]}>
-              {d.label}
-            </Text>
-          </RNView>
+        {data.map((d, i) => (
+          <AnimatedBarColumn
+            key={d.date}
+            pct={d.pct}
+            label={d.label}
+            barColor={barColor}
+            secondaryTextColor={secondaryTextColor}
+            delay={i * 80}
+          />
         ))}
       </RNView>
     </View>

@@ -1,5 +1,13 @@
+import { useEffect } from 'react';
 import { StyleSheet, View as RNView } from 'react-native';
 import { Text, View } from '@/components/Themed';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  FadeInLeft,
+} from 'react-native-reanimated';
 
 interface HabitStreakItem {
   name: string;
@@ -13,6 +21,21 @@ interface HabitStreakListProps {
   secondaryTextColor: string;
   textColor: string;
   cardColor: string;
+}
+
+function AnimatedBar({ color, pct, delay }: { color: string; pct: number; delay: number }) {
+  const width = useSharedValue(0);
+
+  useEffect(() => {
+    width.value = withDelay(delay, withTiming(pct, { duration: 600 }));
+  }, [pct, delay, width]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    width: `${width.value}%`,
+    backgroundColor: color,
+  }));
+
+  return <Animated.View style={[styles.barFill, animatedStyle]} />;
 }
 
 export default function HabitStreakList({
@@ -30,7 +53,7 @@ export default function HabitStreakList({
         Current Streaks
       </Text>
       {habits.map((habit, i) => (
-        <RNView key={i} style={styles.row}>
+        <Animated.View key={i} style={styles.row} entering={FadeInLeft.delay(i * 60).duration(300)}>
           <RNView style={styles.labelRow}>
             <RNView style={[styles.dot, { backgroundColor: habit.color }]} />
             <Text style={[styles.name, { color: textColor }]} numberOfLines={1}>
@@ -41,17 +64,13 @@ export default function HabitStreakList({
             </Text>
           </RNView>
           <RNView style={styles.barTrack}>
-            <RNView
-              style={[
-                styles.barFill,
-                {
-                  backgroundColor: habit.color,
-                  width: maxStreak > 0 ? `${(habit.streak / maxStreak) * 100}%` : '0%',
-                },
-              ]}
+            <AnimatedBar
+              color={habit.color}
+              pct={maxStreak > 0 ? (habit.streak / maxStreak) * 100 : 0}
+              delay={200 + i * 60}
             />
           </RNView>
-        </RNView>
+        </Animated.View>
       ))}
     </View>
   );
