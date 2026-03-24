@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { StyleSheet, ActivityIndicator, Pressable, Alert, ScrollView } from 'react-native';
+import { router } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -12,7 +13,7 @@ import HabitStreakList from '@/components/HabitStreakList';
 export default function StatisticsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, loading } = useHabits();
+  const { habits, archivedHabits, completions, loading } = useHabits();
   const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
@@ -109,6 +110,17 @@ export default function StatisticsScreen() {
         cardColor={colors.card}
       />
 
+      {archivedHabits.length > 0 && (
+        <Pressable
+          style={[styles.outlineButton, { borderColor: colors.border }]}
+          onPress={() => router.push('/archived-habits')}
+        >
+          <Text style={[styles.outlineButtonText, { color: colors.text }]}>
+            Archived Habits ({archivedHabits.length})
+          </Text>
+        </Pressable>
+      )}
+
       <Pressable
         style={[styles.exportButton, { backgroundColor: colors.tint }]}
         onPress={handleExport}
@@ -169,6 +181,16 @@ const styles = StyleSheet.create({
   },
   exportButtonText: {
     color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  outlineButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 14,
+    alignItems: 'center',
+  },
+  outlineButtonText: {
     fontSize: 15,
     fontWeight: '600',
   },

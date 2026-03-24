@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Habit, HabitCompletion, HabitColor, HabitFrequency } from '@/types/habit';
-import { getAllHabits, createHabit as dbCreateHabit, deleteHabit as dbDeleteHabit, updateHabit as dbUpdateHabit } from '@/database/habits';
+import { getAllHabits, getArchivedHabits, createHabit as dbCreateHabit, deleteHabit as dbDeleteHabit, updateHabit as dbUpdateHabit, archiveHabit as dbArchiveHabit, unarchiveHabit as dbUnarchiveHabit } from '@/database/habits';
 import { scheduleHabitReminder, cancelHabitReminder } from '@/services/notifications';
 import {
   toggleCompletion as dbToggleCompletion,
@@ -16,10 +16,13 @@ interface HabitWithStats extends Habit {
 
 interface HabitContextType {
   habits: HabitWithStats[];
+  archivedHabits: Habit[];
   completions: Map<string, Set<string>>;
   loading: boolean;
   createHabit: (name: string, description: string, color: HabitColor, frequency: HabitFrequency, reminderTime?: string | null) => Promise<void>;
   updateHabit: (id: string, updates: Partial<Pick<Habit, 'name' | 'description' | 'color' | 'frequency'>>) => Promise<void>;
+  archiveHabit: (id: string) => Promise<void>;
+  unarchiveHabit: (id: string) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
   toggleCompletion: (habitId: string, date: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -29,6 +32,7 @@ const HabitContext = createContext<HabitContextType | null>(null);
 
 export function HabitProvider({ children }: { children: React.ReactNode }) {
   const [habits, setHabits] = useState<HabitWithStats[]>([]);
+  const [archivedHabits, setArchivedHabits] = useState<Habit[]>([]);
   const [completions, setCompletions] = useState<Map<string, Set<string>>>(new Map());
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +61,10 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
         }))
       );
 
+      const archived = await getArchivedHabits();
+
       setHabits(habitsWithStats);
+      setArchivedHabits(archived);
       setCompletions(compMap);
     } finally {
       setLoading(false);
@@ -90,6 +97,17 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
     await loadData();
   }, [loadData]);
 
+  const archiveHabit = useCallback(async (id: string) => {
+    await cancelHabitReminder(id);
+    await dbArchiveHabit(id);
+    await loadData();
+  }, [loadData]);
+
+  const unarchiveHabit = useCallback(async (id: string) => {
+    await dbUnarchiveHabit(id);
+    await loadData();
+  }, [loadData]);
+
   const deleteHabit = useCallback(async (id: string) => {
     await cancelHabitReminder(id);
     await dbDeleteHabit(id);
@@ -105,10 +123,13 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
     <HabitContext.Provider
       value={{
         habits,
+        archivedHabits,
         completions,
         loading,
         createHabit,
         updateHabit,
+        archiveHabit,
+        unarchiveHabit,
         deleteHabit,
         toggleCompletion,
         refresh: loadData,

@@ -101,19 +101,19 @@ function EmptyState() {
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, loading, toggleCompletion, deleteHabit } = useHabits();
+  const { habits, completions, loading, toggleCompletion, archiveHabit } = useHabits();
 
   const handleEdit = (habitId: string) => {
     router.push({ pathname: '/edit-habit', params: { id: habitId } });
   };
 
-  const confirmDelete = (habitId: string, name: string) => {
+  const confirmArchive = (habitId: string, name: string) => {
     Alert.alert(
-      'Delete Habit',
-      `Are you sure you want to delete "${name}"? This will also delete all completion history.`,
+      'Archive Habit',
+      `Archive "${name}"? It will be hidden but you can restore it later.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteHabit(habitId) },
+        { text: 'Archive', onPress: () => archiveHabit(habitId) },
       ]
     );
   };
@@ -154,7 +154,7 @@ export default function HabitsScreen() {
             dates={dates}
             onToggle={toggleCompletion}
             onEdit={handleEdit}
-            onDelete={confirmDelete}
+            onDelete={confirmArchive}
           />
         )}
         contentContainerStyle={habits.length === 0 ? styles.emptyContainer : styles.list}

@@ -89,6 +89,24 @@ export async function deleteHabit(id: string): Promise<void> {
   await db.runAsync('DELETE FROM habits WHERE id = ?', id);
 }
 
+export async function archiveHabit(id: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync('UPDATE habits SET archived_at = ? WHERE id = ?', Date.now(), id);
+}
+
+export async function unarchiveHabit(id: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync('UPDATE habits SET archived_at = NULL WHERE id = ?', id);
+}
+
+export async function getArchivedHabits(): Promise<Habit[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync(
+    'SELECT * FROM habits WHERE archived_at IS NOT NULL ORDER BY archived_at DESC'
+  );
+  return rows.map(rowToHabit);
+}
+
 export async function updateHabit(
   id: string,
   updates: Partial<Pick<Habit, 'name' | 'description' | 'color' | 'frequency'>>
