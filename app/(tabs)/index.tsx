@@ -1,43 +1,89 @@
-import { StyleSheet, FlatList, Pressable } from 'react-native';
+import { StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
+import { useHabits } from '@/context/HabitContext';
+import { getLast7Dates } from '@/database/completions';
+import { Habit } from '@/types/habit';
 
-// Sample data for initial UI — will be replaced with real storage later
-const SAMPLE_HABITS = [
-  { id: '1', name: 'Meditate', color: '#9C27B0', streak: 5 },
-  { id: '2', name: 'Exercise', color: '#4CAF50', streak: 12 },
-  { id: '3', name: 'Read', color: '#2196F3', streak: 3 },
-  { id: '4', name: 'Drink water', color: '#009688', streak: 30 },
-];
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// Days of the week for the header
-const WEEKDAYS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+function getWeekdayLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  return WEEKDAY_LABELS[d.getDay()];
+}
 
-function CheckmarkCell({ filled, color }: { filled: boolean; color: string }) {
+function CheckmarkCell({
+  filled,
+  color,
+  onPress,
+}: {
+  filled: boolean;
+  color: string;
+  onPress: () => void;
+}) {
   return (
-    <View style={[styles.checkCell, filled && { backgroundColor: color + '30' }]}>
+    <Pressable
+      style={[styles.checkCell, filled && { backgroundColor: color + '30' }]}
+      onPress={onPress}
+    >
       {filled && <Text style={[styles.checkmark, { color }]}>✓</Text>}
+    </Pressable>
+  );
+}
+
+function HabitRow({
+  habit,
+  completedDates,
+  dates,
+  onToggle,
+}: {
+  habit: Habit & { streak: number };
+  completedDates: Set<string>;
+  dates: string[];
+  onToggle: (habitId: string, date: string) => void;
+}) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme];
+
+  return (
+    <View style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+      <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
+      <View style={styles.habitInfo}>
+        <Text style={styles.habitName}>{habit.name}</Text>
+        {habit.streak > 0 && (
+          <Text style={[styles.streakText, { color: colors.secondaryText }]}>
+            {habit.streak}d streak
+          </Text>
+        )}
+      </View>
+      <View style={styles.checksContainer}>
+        {dates.map((date) => (
+          <CheckmarkCell
+            key={date}
+            filled={completedDates.has(date)}
+            color={habit.color}
+            onPress={() => onToggle(habit.id, date)}
+          />
+        ))}
+      </View>
     </View>
   );
 }
 
-function HabitRow({ habit }: { habit: typeof SAMPLE_HABITS[0] }) {
-  // Generate mock last-7-days data
-  const last7 = [true, true, false, true, true, true, false];
+function EmptyState() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme];
 
   return (
-    <View style={styles.habitRow}>
-      <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
-      <View style={styles.habitInfo}>
-        <Text style={styles.habitName}>{habit.name}</Text>
-      </View>
-      <View style={styles.checksContainer}>
-        {last7.map((done, i) => (
-          <CheckmarkCell key={i} filled={done} color={habit.color} />
-        ))}
-      </View>
+    <View style={styles.emptyState}>
+      <Text style={[styles.emptyTitle, { color: colors.secondaryText }]}>
+        No habits yet
+      </Text>
+      <Text style={[styles.emptySubtitle, { color: colors.secondaryText }]}>
+        Tap the + button to create your first habit
+      </Text>
     </View>
   );
 }
@@ -45,30 +91,49 @@ function HabitRow({ habit }: { habit: typeof SAMPLE_HABITS[0] }) {
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
+  const { habits, completions, loading, toggleCompletion } = useHabits();
+  const dates = getLast7Dates();
+
+  if (loading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={colors.tint} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      {/* Weekday header */}
-      <View style={styles.weekdayHeader}>
-        <View style={styles.habitInfoPlaceholder} />
-        <View style={styles.checksContainer}>
-          {WEEKDAYS.map((day, i) => (
-            <View key={i} style={styles.checkCell}>
-              <Text style={[styles.weekdayLabel, { color: colors.secondaryText }]}>{day}</Text>
-            </View>
-          ))}
+      {habits.length > 0 && (
+        <View style={[styles.weekdayHeader, { borderBottomColor: colors.border }]}>
+          <View style={styles.habitInfoPlaceholder} />
+          <View style={styles.checksContainer}>
+            {dates.map((date) => (
+              <View key={date} style={styles.checkCell}>
+                <Text style={[styles.weekdayLabel, { color: colors.secondaryText }]}>
+                  {getWeekdayLabel(date)}
+                </Text>
+              </View>
+            ))}
+          </View>
         </View>
-      </View>
+      )}
 
-      {/* Habit list */}
       <FlatList
-        data={SAMPLE_HABITS}
+        data={habits}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <HabitRow habit={item} />}
-        contentContainerStyle={styles.list}
+        renderItem={({ item }) => (
+          <HabitRow
+            habit={item}
+            completedDates={completions.get(item.id) ?? new Set()}
+            dates={dates}
+            onToggle={toggleCompletion}
+          />
+        )}
+        contentContainerStyle={habits.length === 0 ? styles.emptyContainer : styles.list}
+        ListEmptyComponent={EmptyState}
       />
 
-      {/* FAB */}
       <Link href="/create-habit" asChild>
         <Pressable style={[styles.fab, { backgroundColor: colors.tint }]}>
           <Text style={styles.fabText}>+</Text>
@@ -82,8 +147,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   list: {
     paddingBottom: 80,
+  },
+  emptyContainer: {
+    flex: 1,
   },
   weekdayHeader: {
     flexDirection: 'row',
@@ -91,7 +164,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E7E0EC',
   },
   habitInfoPlaceholder: {
     flex: 1,
@@ -102,7 +174,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingRight: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E7E0EC',
   },
   colorStrip: {
     width: 4,
@@ -117,6 +188,10 @@ const styles = StyleSheet.create({
   habitName: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  streakText: {
+    fontSize: 12,
+    marginTop: 2,
   },
   checksContainer: {
     flexDirection: 'row',
@@ -134,8 +209,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   weekdayLabel: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    textAlign: 'center',
   },
   fab: {
     position: 'absolute',
