@@ -1,4 +1,4 @@
-import { StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
 import { Link } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -38,37 +38,44 @@ function HabitRow({
   completedDates,
   dates,
   onToggle,
+  onDelete,
 }: {
   habit: Habit & { streak: number };
   completedDates: Set<string>;
   dates: string[];
   onToggle: (habitId: string, date: string) => void;
+  onDelete: (habitId: string, name: string) => void;
 }) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
 
   return (
-    <View style={[styles.habitRow, { borderBottomColor: colors.border }]}>
-      <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
-      <View style={styles.habitInfo}>
-        <Text style={styles.habitName}>{habit.name}</Text>
-        {habit.streak > 0 && (
-          <Text style={[styles.streakText, { color: colors.secondaryText }]}>
-            {habit.streak}d streak
-          </Text>
-        )}
+    <Pressable
+      onLongPress={() => onDelete(habit.id, habit.name)}
+      delayLongPress={500}
+    >
+      <View style={[styles.habitRow, { borderBottomColor: colors.border }]}>
+        <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
+        <View style={styles.habitInfo}>
+          <Text style={styles.habitName}>{habit.name}</Text>
+          {habit.streak > 0 && (
+            <Text style={[styles.streakText, { color: colors.secondaryText }]}>
+              {habit.streak}d streak
+            </Text>
+          )}
+        </View>
+        <View style={styles.checksContainer}>
+          {dates.map((date) => (
+            <CheckmarkCell
+              key={date}
+              filled={completedDates.has(date)}
+              color={habit.color}
+              onPress={() => onToggle(habit.id, date)}
+            />
+          ))}
+        </View>
       </View>
-      <View style={styles.checksContainer}>
-        {dates.map((date) => (
-          <CheckmarkCell
-            key={date}
-            filled={completedDates.has(date)}
-            color={habit.color}
-            onPress={() => onToggle(habit.id, date)}
-          />
-        ))}
-      </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -91,7 +98,18 @@ function EmptyState() {
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, loading, toggleCompletion } = useHabits();
+  const { habits, completions, loading, toggleCompletion, deleteHabit } = useHabits();
+
+  const confirmDelete = (habitId: string, name: string) => {
+    Alert.alert(
+      'Delete Habit',
+      `Are you sure you want to delete "${name}"? This will also delete all completion history.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteHabit(habitId) },
+      ]
+    );
+  };
   const dates = getLast7Dates();
 
   if (loading) {
@@ -128,6 +146,7 @@ export default function HabitsScreen() {
             completedDates={completions.get(item.id) ?? new Set()}
             dates={dates}
             onToggle={toggleCompletion}
+            onDelete={confirmDelete}
           />
         )}
         contentContainerStyle={habits.length === 0 ? styles.emptyContainer : styles.list}
