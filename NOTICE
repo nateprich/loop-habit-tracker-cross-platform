@@ -1,0 +1,13 @@
+This project is based on Loop Habit Tracker (uhabits).
+
+Original project: https://github.com/iSoron/uhabits
+Original author:  Alinson Santos Xavier <isoron@gmail.com>
+Original license: GNU General Public License v3.0 or later
+Copyright:        (C) 2016-2025 Alinson Santos Xavier
+
+This is an independent cross-platform rewrite. It is not a direct fork and is
+not affiliated with or endorsed by the original project or its author.
+
+Changes from the original:
+- Complete rewrite as a cross-platform application targeting both Android and iOS
+- The original is a native Android app built with Kotlin/Java
