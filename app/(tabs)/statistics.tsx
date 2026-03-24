@@ -1,14 +1,28 @@
-import { StyleSheet, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useHabits } from '@/context/HabitContext';
 import { formatDate } from '@/database/completions';
+import { exportHabitsToCSV } from '@/services/export';
 
 export default function StatisticsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
   const { habits, completions, loading } = useHabits();
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await exportHabitsToCSV();
+    } catch (e: any) {
+      Alert.alert('Export failed', e.message || 'Something went wrong');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -76,9 +90,15 @@ export default function StatisticsScreen() {
         </Text>
       </View>
 
-      <Text style={[styles.placeholder, { color: colors.secondaryText }]}>
-        Detailed charts and history coming soon
-      </Text>
+      <Pressable
+        style={[styles.exportButton, { backgroundColor: colors.tint }]}
+        onPress={handleExport}
+        disabled={exporting}
+      >
+        <Text style={styles.exportButtonText}>
+          {exporting ? 'Exporting...' : 'Export to CSV'}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -116,10 +136,15 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 2,
   },
-  placeholder: {
-    textAlign: 'center',
-    marginTop: 24,
-    fontSize: 14,
-    fontStyle: 'italic',
+  exportButton: {
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  exportButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
