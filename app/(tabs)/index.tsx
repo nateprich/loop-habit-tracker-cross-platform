@@ -1,5 +1,5 @@
 import { StyleSheet, FlatList, Pressable, ActivityIndicator, Alert } from 'react-native';
-import { Link } from 'expo-router';
+import { Link, router } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -38,12 +38,14 @@ function HabitRow({
   completedDates,
   dates,
   onToggle,
+  onEdit,
   onDelete,
 }: {
   habit: Habit & { streak: number };
   completedDates: Set<string>;
   dates: string[];
   onToggle: (habitId: string, date: string) => void;
+  onEdit: (habitId: string) => void;
   onDelete: (habitId: string, name: string) => void;
 }) {
   const colorScheme = useColorScheme();
@@ -51,6 +53,7 @@ function HabitRow({
 
   return (
     <Pressable
+      onPress={() => onEdit(habit.id)}
       onLongPress={() => onDelete(habit.id, habit.name)}
       delayLongPress={500}
     >
@@ -100,6 +103,10 @@ export default function HabitsScreen() {
   const colors = Colors[colorScheme];
   const { habits, completions, loading, toggleCompletion, deleteHabit } = useHabits();
 
+  const handleEdit = (habitId: string) => {
+    router.push({ pathname: '/edit-habit', params: { id: habitId } });
+  };
+
   const confirmDelete = (habitId: string, name: string) => {
     Alert.alert(
       'Delete Habit',
@@ -146,6 +153,7 @@ export default function HabitsScreen() {
             completedDates={completions.get(item.id) ?? new Set()}
             dates={dates}
             onToggle={toggleCompletion}
+            onEdit={handleEdit}
             onDelete={confirmDelete}
           />
         )}
