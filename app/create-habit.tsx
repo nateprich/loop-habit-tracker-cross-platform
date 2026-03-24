@@ -5,19 +5,33 @@ import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { HABIT_COLORS, HabitColor } from '@/types/habit';
+import { useHabits } from '@/context/HabitContext';
 
 export default function CreateHabitScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
+  const { createHabit } = useHabits();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedColor, setSelectedColor] = useState<HabitColor>(HABIT_COLORS[0]);
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily');
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    // TODO: Save to storage
-    router.back();
+  const handleSave = async () => {
+    if (!name.trim() || saving) return;
+    setSaving(true);
+    try {
+      await createHabit(
+        name.trim(),
+        description.trim(),
+        selectedColor,
+        frequency === 'daily' ? { type: 'daily' } : { type: 'weekly', days: [1, 2, 3, 4, 5] }
+      );
+      router.back();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -107,9 +121,9 @@ export default function CreateHabitScreen() {
           backgroundColor: name.trim() ? colors.tint : colors.border,
         }]}
         onPress={handleSave}
-        disabled={!name.trim()}
+        disabled={!name.trim() || saving}
       >
-        <Text style={styles.saveButtonText}>Save</Text>
+        <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
       </Pressable>
     </ScrollView>
   );

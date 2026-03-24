@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { HabitProvider } from '@/context/HabitContext';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -45,11 +46,13 @@ function RootLayoutNav() {
   const colorScheme = useColorScheme();
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="create-habit" options={{ presentation: 'modal', title: 'Create Habit' }} />
-      </Stack>
-    </ThemeProvider>
+    <HabitProvider>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="create-habit" options={{ presentation: 'modal', title: 'Create Habit' }} />
+        </Stack>
+      </ThemeProvider>
+    </HabitProvider>
   );
 }
