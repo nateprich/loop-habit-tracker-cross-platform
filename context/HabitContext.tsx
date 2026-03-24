@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Habit, HabitCompletion, HabitColor, HabitFrequency } from '@/types/habit';
 import { getAllHabits, createHabit as dbCreateHabit, deleteHabit as dbDeleteHabit } from '@/database/habits';
+import { scheduleHabitReminder, cancelHabitReminder } from '@/services/notifications';
 import {
   toggleCompletion as dbToggleCompletion,
   getCompletionsForDateRange,
@@ -17,7 +18,7 @@ interface HabitContextType {
   habits: HabitWithStats[];
   completions: Map<string, Set<string>>;
   loading: boolean;
-  createHabit: (name: string, description: string, color: HabitColor, frequency: HabitFrequency) => Promise<void>;
+  createHabit: (name: string, description: string, color: HabitColor, frequency: HabitFrequency, reminderTime?: string | null) => Promise<void>;
   deleteHabit: (id: string) => Promise<void>;
   toggleCompletion: (habitId: string, date: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -70,13 +71,18 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
     name: string,
     description: string,
     color: HabitColor,
-    frequency: HabitFrequency
+    frequency: HabitFrequency,
+    reminderTime: string | null = null
   ) => {
-    await dbCreateHabit(name, description, color, frequency);
+    const habit = await dbCreateHabit(name, description, color, frequency, reminderTime);
+    if (reminderTime) {
+      await scheduleHabitReminder(habit.id, habit.name, reminderTime);
+    }
     await loadData();
   }, [loadData]);
 
   const deleteHabit = useCallback(async (id: string) => {
+    await cancelHabitReminder(id);
     await dbDeleteHabit(id);
     await loadData();
   }, [loadData]);

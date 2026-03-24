@@ -29,6 +29,7 @@ export interface Habit {
   description: string;
   color: HabitColor;
   frequency: HabitFrequency;
+  reminderTime: string | null; // "HH:MM" format, null = no reminder
   createdAt: number; // Unix timestamp
   archivedAt: number | null;
 }

@@ -34,6 +34,7 @@ function rowToHabit(row: any): Habit {
     description: row.description,
     color: row.color as HabitColor,
     frequency: frequencyFromDb(row.frequency_type, row.frequency_days, row.frequency_times_per_week),
+    reminderTime: row.reminder_time ?? null,
     createdAt: row.created_at,
     archivedAt: row.archived_at,
   };
@@ -51,7 +52,8 @@ export async function createHabit(
   name: string,
   description: string,
   color: HabitColor,
-  frequency: HabitFrequency
+  frequency: HabitFrequency,
+  reminderTime: string | null = null
 ): Promise<Habit> {
   const db = await getDatabase();
   const id = generateId();
@@ -65,9 +67,9 @@ export async function createHabit(
   const position = (result?.max_pos ?? -1) + 1;
 
   await db.runAsync(
-    `INSERT INTO habits (id, name, description, color, frequency_type, frequency_days, frequency_times_per_week, position, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, name, description, color, freq.type, freq.days, freq.timesPerWeek, position, now
+    `INSERT INTO habits (id, name, description, color, frequency_type, frequency_days, frequency_times_per_week, position, reminder_time, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, name, description, color, freq.type, freq.days, freq.timesPerWeek, position, reminderTime, now
   );
 
   return {
@@ -76,6 +78,7 @@ export async function createHabit(
     description,
     color,
     frequency,
+    reminderTime,
     createdAt: now,
     archivedAt: null,
   };
