@@ -129,6 +129,10 @@ export default function HabitDetailScreen() {
       {/* Stats cards */}
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+          <Text style={[styles.statValue, { color: habit.color }]}>{habit.score}%</Text>
+          <Text style={[styles.statLabel, { color: colors.secondaryText }]}>Strength</Text>
+        </View>
+        <View style={[styles.statCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.statValue, { color: habit.color }]}>{stats.currentStreak}</Text>
           <Text style={[styles.statLabel, { color: colors.secondaryText }]}>Current{'\n'}Streak</Text>
         </View>
@@ -139,10 +143,6 @@ export default function HabitDetailScreen() {
         <View style={[styles.statCard, { backgroundColor: colors.card }]}>
           <Text style={[styles.statValue, { color: habit.color }]}>{stats.completionRate}%</Text>
           <Text style={[styles.statLabel, { color: colors.secondaryText }]}>Last 30{'\n'}Days</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.card }]}>
-          <Text style={[styles.statValue, { color: habit.color }]}>{stats.totalEntries}</Text>
-          <Text style={[styles.statLabel, { color: colors.secondaryText }]}>Total{'\n'}Entries</Text>
         </View>
       </View>
 

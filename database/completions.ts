@@ -1,6 +1,9 @@
 import { getDatabase } from './schema';
 import { HabitCompletion } from '@/types/habit';
 
+// Special value for "skip" — doesn't break streak but doesn't count as completed
+export const SKIP_VALUE = -1;
+
 export async function toggleCompletion(habitId: string, date: string): Promise<boolean> {
   const db = await getDatabase();
   const existing = await db.getFirstAsync<{ value: number }>(
@@ -8,18 +11,49 @@ export async function toggleCompletion(habitId: string, date: string): Promise<b
     habitId, date
   );
 
-  if (existing) {
+  if (existing && existing.value > 0) {
+    // Currently completed -> remove
     await db.runAsync(
       'DELETE FROM completions WHERE habit_id = ? AND date = ?',
       habitId, date
     );
     return false;
+  } else if (existing && existing.value === SKIP_VALUE) {
+    // Currently skipped -> mark completed
+    await db.runAsync(
+      'UPDATE completions SET value = 1 WHERE habit_id = ? AND date = ?',
+      habitId, date
+    );
+    return true;
   } else {
     await db.runAsync(
       'INSERT INTO completions (habit_id, date, value) VALUES (?, ?, 1)',
       habitId, date
     );
     return true;
+  }
+}
+
+export async function skipDay(habitId: string, date: string): Promise<void> {
+  const db = await getDatabase();
+  await db.runAsync(
+    `INSERT INTO completions (habit_id, date, value) VALUES (?, ?, ?)
+     ON CONFLICT(habit_id, date) DO UPDATE SET value = excluded.value`,
+    habitId, date, SKIP_VALUE
+  );
+}
+
+export async function unskipDay(habitId: string, date: string): Promise<void> {
+  const db = await getDatabase();
+  const existing = await db.getFirstAsync<{ value: number }>(
+    'SELECT value FROM completions WHERE habit_id = ? AND date = ?',
+    habitId, date
+  );
+  if (existing && existing.value === SKIP_VALUE) {
+    await db.runAsync(
+      'DELETE FROM completions WHERE habit_id = ? AND date = ?',
+      habitId, date
+    );
   }
 }
 
@@ -92,7 +126,11 @@ export async function getStreakForHabit(habitId: string, targetValue: number | n
       habitId, dateStr
     );
 
-    if (row && row.value >= threshold) {
+    if (row && row.value === SKIP_VALUE) {
+      // Skipped day — don't break streak, don't count it
+      currentDate.setDate(currentDate.getDate() - 1);
+      continue;
+    } else if (row && row.value >= threshold) {
       streak++;
       currentDate.setDate(currentDate.getDate() - 1);
     } else {

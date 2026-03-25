@@ -39,12 +39,16 @@ const CIRCLE_STROKE = 2.5;
 
 function CheckmarkCell({
   filled,
+  skipped,
   color,
   onPress,
+  onLongPress,
 }: {
   filled: boolean;
+  skipped: boolean;
   color: string;
   onPress: () => void;
+  onLongPress: () => void;
 }) {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({
@@ -60,20 +64,23 @@ function CheckmarkCell({
   };
 
   return (
-    <Pressable style={styles.checkCell} onPress={handlePress}>
+    <Pressable style={styles.checkCell} onPress={handlePress} onLongPress={onLongPress} delayLongPress={400}>
       <Animated.View style={[styles.checkCellInner, animatedStyle]}>
         <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
           <Circle
             cx={CIRCLE_SIZE / 2}
             cy={CIRCLE_SIZE / 2}
             r={CIRCLE_RADIUS}
-            stroke={color + (filled ? 'FF' : '40')}
+            stroke={skipped ? '#9E9E9E' : color + (filled ? 'FF' : '40')}
             strokeWidth={CIRCLE_STROKE}
-            fill={filled ? color : 'transparent'}
+            fill={skipped ? '#9E9E9E40' : filled ? color : 'transparent'}
           />
         </Svg>
-        {filled && (
+        {filled && !skipped && (
           <Text style={styles.checkIcon}>✓</Text>
+        )}
+        {skipped && (
+          <Text style={styles.skipIcon}>—</Text>
         )}
       </Animated.View>
     </Pressable>
@@ -149,19 +156,23 @@ function DateHeaderCell({ dateStr, colors }: { dateStr: string; colors: any }) {
 function HabitRow({
   habit,
   completedDates,
+  skippedDates,
   valuesByDate,
   dates,
   onToggle,
   onNumericTap,
+  onSkip,
   onLongPress,
   scrollRef,
 }: {
   habit: Habit & { streak: number };
   completedDates: Set<string>;
+  skippedDates: Set<string>;
   valuesByDate: Map<string, number>;
   dates: string[];
   onToggle: (habitId: string, date: string) => void;
   onNumericTap: (habitId: string, date: string, currentValue: number) => void;
+  onSkip: (habitId: string, date: string) => void;
   onLongPress: (habit: Habit) => void;
   scrollRef: React.RefObject<ScrollView | null>;
 }) {
@@ -216,8 +227,10 @@ function HabitRow({
             <CheckmarkCell
               key={date}
               filled={completedDates.has(date)}
+              skipped={skippedDates.has(date)}
               color={habit.color}
               onPress={() => onToggle(habit.id, date)}
+              onLongPress={() => onSkip(habit.id, date)}
             />
           )
         )}
@@ -302,7 +315,7 @@ function NumericInputModal({
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, completionValues, loading, toggleCompletion, setNumericValue, archiveHabit, deleteHabit } = useHabits();
+  const { habits, completions, completionValues, skippedDays, loading, toggleCompletion, skipDay, setNumericValue, archiveHabit, deleteHabit } = useHabits();
   const dates = getLastNDates(VISIBLE_DAYS);
   const headerScrollRef = useRef<ScrollView>(null);
 
@@ -385,9 +398,11 @@ export default function HabitsScreen() {
           <HabitRow
             habit={item}
             completedDates={completions.get(item.id) ?? new Set()}
+            skippedDates={skippedDays.get(item.id) ?? new Set()}
             valuesByDate={completionValues.get(item.id) ?? new Map()}
             dates={dates}
             onToggle={toggleCompletion}
+            onSkip={skipDay}
             onLongPress={handleLongPress}
             onNumericTap={(habitId, date, currentValue) => {
               setNumericModal({
@@ -521,6 +536,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     color: '#fff',
     fontSize: 14,
+    fontWeight: '700',
+  },
+  skipIcon: {
+    position: 'absolute',
+    color: '#9E9E9E',
+    fontSize: 16,
     fontWeight: '700',
   },
   numericValue: {
