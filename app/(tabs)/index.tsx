@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { Link } from 'expo-router';
+import Svg, { Circle } from 'react-native-svg';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -11,9 +12,15 @@ import { Habit } from '@/types/habit';
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function getWeekdayLabel(dateStr: string): string {
-  const d = new Date(dateStr + 'T12:00:00'); // noon to avoid timezone issues
+  const d = new Date(dateStr + 'T12:00:00');
   return WEEKDAY_LABELS[d.getDay()];
 }
+
+// --- Colored circle checkmark (Loop-style) ---
+const CIRCLE_SIZE = 32;
+const CIRCLE_RADIUS = 13;
+const CIRCLE_STROKE = 2.5;
+const CHECK_ICON = '✓';
 
 function CheckmarkCell({
   filled,
@@ -25,14 +32,27 @@ function CheckmarkCell({
   onPress: () => void;
 }) {
   return (
-    <Pressable
-      style={[styles.checkCell, filled && { backgroundColor: color + '30' }]}
-      onPress={onPress}
-    >
-      {filled && <Text style={[styles.checkmark, { color }]}>✓</Text>}
+    <Pressable style={styles.checkCell} onPress={onPress}>
+      <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+        {/* Background ring (always visible) */}
+        <Circle
+          cx={CIRCLE_SIZE / 2}
+          cy={CIRCLE_SIZE / 2}
+          r={CIRCLE_RADIUS}
+          stroke={color + (filled ? 'FF' : '40')}
+          strokeWidth={CIRCLE_STROKE}
+          fill={filled ? color : 'transparent'}
+        />
+      </Svg>
+      {filled && (
+        <Text style={styles.checkIcon}>✓</Text>
+      )}
     </Pressable>
   );
 }
+
+// --- Progress ring for numeric habits ---
+const RING_CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 
 function NumericCell({
   value,
@@ -46,13 +66,40 @@ function NumericCell({
   onPress: () => void;
 }) {
   const met = target ? value >= target : value > 0;
+  const progress = target && target > 0 ? Math.min(value / target, 1) : (value > 0 ? 1 : 0);
+  const strokeDashoffset = RING_CIRCUMFERENCE * (1 - progress);
+
   return (
-    <Pressable
-      style={[styles.checkCell, met && { backgroundColor: color + '30' }]}
-      onPress={onPress}
-    >
+    <Pressable style={styles.checkCell} onPress={onPress}>
+      <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+        {/* Background ring track */}
+        <Circle
+          cx={CIRCLE_SIZE / 2}
+          cy={CIRCLE_SIZE / 2}
+          r={CIRCLE_RADIUS}
+          stroke={color + '25'}
+          strokeWidth={CIRCLE_STROKE}
+          fill="transparent"
+        />
+        {/* Progress arc */}
+        {value > 0 && (
+          <Circle
+            cx={CIRCLE_SIZE / 2}
+            cy={CIRCLE_SIZE / 2}
+            r={CIRCLE_RADIUS}
+            stroke={color}
+            strokeWidth={CIRCLE_STROKE}
+            fill={met ? color : 'transparent'}
+            strokeDasharray={`${RING_CIRCUMFERENCE}`}
+            strokeDashoffset={met ? 0 : strokeDashoffset}
+            strokeLinecap="round"
+            rotation="-90"
+            origin={`${CIRCLE_SIZE / 2}, ${CIRCLE_SIZE / 2}`}
+          />
+        )}
+      </Svg>
       {value > 0 && (
-        <Text style={[styles.numericValue, { color: met ? color : color + '99' }]}>
+        <Text style={[styles.numericValue, { color: met ? '#fff' : color }]}>
           {value % 1 === 0 ? value.toString() : value.toFixed(1)}
         </Text>
       )}
@@ -337,18 +384,20 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   checkCell: {
-    width: 32,
-    height: 32,
-    borderRadius: 6,
+    width: CIRCLE_SIZE,
+    height: CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkmark: {
-    fontSize: 16,
+  checkIcon: {
+    position: 'absolute',
+    color: '#fff',
+    fontSize: 14,
     fontWeight: '700',
   },
   numericValue: {
-    fontSize: 11,
+    position: 'absolute',
+    fontSize: 10,
     fontWeight: '700',
   },
   weekdayLabel: {
