@@ -16,6 +16,7 @@ export default function CreateHabitScreen() {
   const [description, setDescription] = useState('');
   const [selectedColor, setSelectedColor] = useState<HabitColor>(HABIT_COLORS[0]);
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily');
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
@@ -26,7 +27,7 @@ export default function CreateHabitScreen() {
         name.trim(),
         description.trim(),
         selectedColor,
-        frequency === 'daily' ? { type: 'daily' } : { type: 'weekly', days: [1, 2, 3, 4, 5] }
+        frequency === 'daily' ? { type: 'daily' } : { type: 'weekly', days: selectedDays }
       );
       router.back();
     } finally {
@@ -116,6 +117,39 @@ export default function CreateHabitScreen() {
         </Pressable>
       </View>
 
+      {frequency === 'weekly' && (
+        <View style={styles.dayPickerRow}>
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((label, index) => {
+            const isSelected = selectedDays.includes(index);
+            return (
+              <Pressable
+                key={index}
+                style={[
+                  styles.dayCircle,
+                  { borderColor: colors.border },
+                  isSelected && { backgroundColor: colors.tint, borderColor: colors.tint },
+                ]}
+                onPress={() => {
+                  setSelectedDays((prev) =>
+                    prev.includes(index)
+                      ? prev.filter((d) => d !== index)
+                      : [...prev, index].sort()
+                  );
+                }}
+              >
+                <Text style={[
+                  styles.dayText,
+                  { color: colors.text },
+                  isSelected && { color: '#fff' },
+                ]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
       <Pressable
         style={[styles.saveButton, {
           backgroundColor: name.trim() ? colors.tint : colors.border,
@@ -191,6 +225,24 @@ const styles = StyleSheet.create({
   },
   frequencyTextSelected: {
     color: '#fff',
+  },
+  dayPickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    gap: 6,
+  },
+  dayCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dayText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   saveButton: {
     borderRadius: 12,
