@@ -3,8 +3,8 @@ import { HabitCompletion } from '@/types/habit';
 
 export async function toggleCompletion(habitId: string, date: string): Promise<boolean> {
   const db = await getDatabase();
-  const existing = await db.getFirstAsync<{ completed: number }>(
-    'SELECT completed FROM completions WHERE habit_id = ? AND date = ?',
+  const existing = await db.getFirstAsync<{ value: number }>(
+    'SELECT value FROM completions WHERE habit_id = ? AND date = ?',
     habitId, date
   );
 
@@ -16,10 +16,26 @@ export async function toggleCompletion(habitId: string, date: string): Promise<b
     return false;
   } else {
     await db.runAsync(
-      'INSERT INTO completions (habit_id, date, completed) VALUES (?, ?, 1)',
+      'INSERT INTO completions (habit_id, date, value) VALUES (?, ?, 1)',
       habitId, date
     );
     return true;
+  }
+}
+
+export async function setNumericValue(habitId: string, date: string, value: number): Promise<void> {
+  const db = await getDatabase();
+  if (value <= 0) {
+    await db.runAsync(
+      'DELETE FROM completions WHERE habit_id = ? AND date = ?',
+      habitId, date
+    );
+  } else {
+    await db.runAsync(
+      `INSERT INTO completions (habit_id, date, value) VALUES (?, ?, ?)
+       ON CONFLICT(habit_id, date) DO UPDATE SET value = excluded.value`,
+      habitId, date, value
+    );
   }
 }
 
@@ -32,8 +48,8 @@ export async function getCompletionsForDateRange(
 
   const db = await getDatabase();
   const placeholders = habitIds.map(() => '?').join(',');
-  const rows = await db.getAllAsync<{ habit_id: string; date: string; completed: number }>(
-    `SELECT habit_id, date, completed FROM completions
+  const rows = await db.getAllAsync<{ habit_id: string; date: string; value: number }>(
+    `SELECT habit_id, date, value FROM completions
      WHERE habit_id IN (${placeholders}) AND date >= ? AND date <= ?`,
     ...habitIds, startDate, endDate
   );
@@ -41,39 +57,42 @@ export async function getCompletionsForDateRange(
   return rows.map((row) => ({
     habitId: row.habit_id,
     date: row.date,
-    completed: row.completed === 1,
+    completed: row.value > 0,
+    value: row.value,
   }));
 }
 
 export async function getCompletionsForHabit(habitId: string): Promise<HabitCompletion[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync<{ habit_id: string; date: string; completed: number }>(
-    'SELECT habit_id, date, completed FROM completions WHERE habit_id = ? ORDER BY date DESC',
+  const rows = await db.getAllAsync<{ habit_id: string; date: string; value: number }>(
+    'SELECT habit_id, date, value FROM completions WHERE habit_id = ? ORDER BY date DESC',
     habitId
   );
 
   return rows.map((row) => ({
     habitId: row.habit_id,
     date: row.date,
-    completed: row.completed === 1,
+    completed: row.value > 0,
+    value: row.value,
   }));
 }
 
-export async function getStreakForHabit(habitId: string): Promise<number> {
+export async function getStreakForHabit(habitId: string, targetValue: number | null = null): Promise<number> {
   const today = new Date();
   let streak = 0;
   let currentDate = new Date(today);
 
   const db = await getDatabase();
+  const threshold = targetValue ?? 1;
 
   while (true) {
     const dateStr = formatDate(currentDate);
-    const row = await db.getFirstAsync<{ completed: number }>(
-      'SELECT completed FROM completions WHERE habit_id = ? AND date = ?',
+    const row = await db.getFirstAsync<{ value: number }>(
+      'SELECT value FROM completions WHERE habit_id = ? AND date = ?',
       habitId, dateStr
     );
 
-    if (row) {
+    if (row && row.value >= threshold) {
       streak++;
       currentDate.setDate(currentDate.getDate() - 1);
     } else {

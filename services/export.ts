@@ -16,15 +16,16 @@ export async function exportHabitsToCSV(): Promise<void> {
 
   // Gather all completion dates across all habits
   const allDates = new Set<string>();
-  const completionsByHabit = new Map<string, Set<string>>();
+  const completionsByHabit = new Map<string, Map<string, number>>();
 
   for (const habit of habits) {
     const completions = await getCompletionsForHabit(habit.id);
-    const dateSet = new Set(completions.map((c) => c.date));
-    completionsByHabit.set(habit.id, dateSet);
-    for (const date of dateSet) {
-      allDates.add(date);
+    const dateMap = new Map<string, number>();
+    for (const c of completions) {
+      dateMap.set(c.date, c.value);
+      allDates.add(c.date);
     }
+    completionsByHabit.set(habit.id, dateMap);
   }
 
   // Sort dates ascending
@@ -42,8 +43,10 @@ export async function exportHabitsToCSV(): Promise<void> {
   const header = 'Date,' + habits.map((h) => escapeCsv(h.name)).join(',');
   const rows = sortedDates.map((date) => {
     const values = habits.map((h) => {
-      const dateSet = completionsByHabit.get(h.id);
-      return dateSet?.has(date) ? '1' : '0';
+      const dateMap = completionsByHabit.get(h.id);
+      const val = dateMap?.get(date);
+      if (val === undefined) return '0';
+      return h.type === 'numeric' ? String(val) : '1';
     });
     return date + ',' + values.join(',');
   });

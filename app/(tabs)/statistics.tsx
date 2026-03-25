@@ -8,7 +8,7 @@ import { formatDate } from '@/database/completions';
 export default function StatisticsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, loading } = useHabits();
+  const { habits, completions, completionValues, loading } = useHabits();
 
   if (loading) {
     return (
@@ -27,9 +27,14 @@ export default function StatisticsScreen() {
   );
 
   const todayStr = formatDate(new Date());
-  const completedToday = habits.filter(
-    (h) => completions.get(h.id)?.has(todayStr)
-  ).length;
+  const completedToday = habits.filter((h) => {
+    if (!completions.get(h.id)?.has(todayStr)) return false;
+    if (h.type === 'numeric' && h.targetValue != null) {
+      const val = completionValues.get(h.id)?.get(todayStr) ?? 0;
+      return val >= h.targetValue;
+    }
+    return true;
+  }).length;
   const completionPct = totalHabits > 0 ? Math.round((completedToday / totalHabits) * 100) : 0;
 
   if (totalHabits === 0) {

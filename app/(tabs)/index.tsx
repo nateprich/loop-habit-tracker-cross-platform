@@ -1,4 +1,5 @@
-import { StyleSheet, FlatList, Pressable, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { Link } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
@@ -33,16 +34,46 @@ function CheckmarkCell({
   );
 }
 
+function NumericCell({
+  value,
+  target,
+  color,
+  onPress,
+}: {
+  value: number;
+  target: number | null;
+  color: string;
+  onPress: () => void;
+}) {
+  const met = target ? value >= target : value > 0;
+  return (
+    <Pressable
+      style={[styles.checkCell, met && { backgroundColor: color + '30' }]}
+      onPress={onPress}
+    >
+      {value > 0 && (
+        <Text style={[styles.numericValue, { color: met ? color : color + '99' }]}>
+          {value % 1 === 0 ? value.toString() : value.toFixed(1)}
+        </Text>
+      )}
+    </Pressable>
+  );
+}
+
 function HabitRow({
   habit,
   completedDates,
+  valuesByDate,
   dates,
   onToggle,
+  onNumericTap,
 }: {
   habit: Habit & { streak: number };
   completedDates: Set<string>;
+  valuesByDate: Map<string, number>;
   dates: string[];
   onToggle: (habitId: string, date: string) => void;
+  onNumericTap: (habitId: string, date: string, currentValue: number) => void;
 }) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
@@ -52,21 +83,37 @@ function HabitRow({
       <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
       <View style={styles.habitInfo}>
         <Text style={styles.habitName}>{habit.name}</Text>
-        {habit.streak > 0 && (
+        {habit.type === 'numeric' && habit.unit ? (
           <Text style={[styles.streakText, { color: colors.secondaryText }]}>
-            {habit.streak}d streak
+            {habit.streak > 0 ? `${habit.streak}d streak · ` : ''}{habit.targetValue ?? '—'} {habit.unit}
           </Text>
+        ) : (
+          habit.streak > 0 && (
+            <Text style={[styles.streakText, { color: colors.secondaryText }]}>
+              {habit.streak}d streak
+            </Text>
+          )
         )}
       </View>
       <View style={styles.checksContainer}>
-        {dates.map((date) => (
-          <CheckmarkCell
-            key={date}
-            filled={completedDates.has(date)}
-            color={habit.color}
-            onPress={() => onToggle(habit.id, date)}
-          />
-        ))}
+        {dates.map((date) =>
+          habit.type === 'numeric' ? (
+            <NumericCell
+              key={date}
+              value={valuesByDate.get(date) ?? 0}
+              target={habit.targetValue}
+              color={habit.color}
+              onPress={() => onNumericTap(habit.id, date, valuesByDate.get(date) ?? 0)}
+            />
+          ) : (
+            <CheckmarkCell
+              key={date}
+              filled={completedDates.has(date)}
+              color={habit.color}
+              onPress={() => onToggle(habit.id, date)}
+            />
+          )
+        )}
       </View>
     </View>
   );
@@ -88,11 +135,75 @@ function EmptyState() {
   );
 }
 
+function NumericInputModal({
+  visible,
+  habitName,
+  unit,
+  currentValue,
+  onSave,
+  onCancel,
+}: {
+  visible: boolean;
+  habitName: string;
+  unit: string;
+  currentValue: number;
+  onSave: (value: number) => void;
+  onCancel: () => void;
+}) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme];
+  const [text, setText] = useState(currentValue > 0 ? String(currentValue) : '');
+
+  const handleSave = () => {
+    const num = parseFloat(text);
+    onSave(isNaN(num) ? 0 : num);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <Pressable style={styles.modalOverlay} onPress={onCancel}>
+        <Pressable style={[styles.modalContent, { backgroundColor: colors.card }]} onPress={() => {}}>
+          <Text style={[styles.modalTitle, { color: colors.text }]}>{habitName}</Text>
+          <View style={styles.modalInputRow}>
+            <TextInput
+              style={[styles.modalInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              value={text}
+              onChangeText={setText}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={colors.secondaryText}
+              autoFocus
+              selectTextOnFocus
+            />
+            {unit ? <Text style={[styles.modalUnit, { color: colors.secondaryText }]}>{unit}</Text> : null}
+          </View>
+          <View style={styles.modalButtons}>
+            <Pressable style={[styles.modalBtn, { borderColor: colors.border }]} onPress={onCancel}>
+              <Text style={{ color: colors.text }}>Cancel</Text>
+            </Pressable>
+            <Pressable style={[styles.modalBtn, { backgroundColor: colors.tint }]} onPress={handleSave}>
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, loading, toggleCompletion } = useHabits();
+  const { habits, completions, completionValues, loading, toggleCompletion, setNumericValue } = useHabits();
   const dates = getLast7Dates();
+
+  const [numericModal, setNumericModal] = useState<{
+    habitId: string;
+    habitName: string;
+    unit: string;
+    date: string;
+    currentValue: number;
+  } | null>(null);
 
   if (loading) {
     return (
@@ -128,13 +239,38 @@ export default function HabitsScreen() {
           <HabitRow
             habit={item}
             completedDates={completions.get(item.id) ?? new Set()}
+            valuesByDate={completionValues.get(item.id) ?? new Map()}
             dates={dates}
             onToggle={toggleCompletion}
+            onNumericTap={(habitId, date, currentValue) => {
+              setNumericModal({
+                habitId,
+                habitName: item.name,
+                unit: item.unit,
+                date,
+                currentValue,
+              });
+            }}
           />
         )}
         contentContainerStyle={habits.length === 0 ? styles.emptyContainer : styles.list}
         ListEmptyComponent={EmptyState}
       />
+
+      {/* Numeric input modal */}
+      {numericModal && (
+        <NumericInputModal
+          visible
+          habitName={numericModal.habitName}
+          unit={numericModal.unit}
+          currentValue={numericModal.currentValue}
+          onSave={(value) => {
+            setNumericValue(numericModal.habitId, numericModal.date, value);
+            setNumericModal(null);
+          }}
+          onCancel={() => setNumericModal(null)}
+        />
+      )}
 
       {/* FAB */}
       <Link href="/create-habit" asChild>
@@ -211,6 +347,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  numericValue: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   weekdayLabel: {
     fontSize: 11,
     fontWeight: '600',
@@ -250,5 +390,53 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '300',
     marginTop: -2,
+  },
+  // Numeric input modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalContent: {
+    width: 280,
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 24,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  modalUnit: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalBtn: {
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    padding: 12,
+    alignItems: 'center',
   },
 });

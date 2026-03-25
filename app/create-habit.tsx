@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
-import { HABIT_COLORS, HabitColor } from '@/types/habit';
+import { HABIT_COLORS, HabitColor, HabitType } from '@/types/habit';
 import { useHabits } from '@/context/HabitContext';
 
 export default function CreateHabitScreen() {
@@ -17,17 +17,24 @@ export default function CreateHabitScreen() {
   const [selectedColor, setSelectedColor] = useState<HabitColor>(HABIT_COLORS[0]);
   const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily');
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [habitType, setHabitType] = useState<HabitType>('boolean');
+  const [targetValue, setTargetValue] = useState('');
+  const [unit, setUnit] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
     if (!name.trim() || saving) return;
     setSaving(true);
     try {
+      const parsedTarget = parseFloat(targetValue);
       await createHabit(
         name.trim(),
         description.trim(),
         selectedColor,
-        frequency === 'daily' ? { type: 'daily' } : { type: 'weekly', days: selectedDays }
+        frequency === 'daily' ? { type: 'daily' } : { type: 'weekly', days: selectedDays },
+        habitType,
+        habitType === 'numeric' && !isNaN(parsedTarget) ? parsedTarget : null,
+        habitType === 'numeric' ? unit.trim() : ''
       );
       router.back();
     } finally {
@@ -82,6 +89,76 @@ export default function CreateHabitScreen() {
           />
         ))}
       </View>
+
+      <Text style={styles.label}>Type</Text>
+      <View style={styles.frequencyRow}>
+        <Pressable
+          style={[
+            styles.frequencyOption,
+            { borderColor: colors.border },
+            habitType === 'boolean' && { backgroundColor: colors.tint, borderColor: colors.tint },
+          ]}
+          onPress={() => setHabitType('boolean')}
+        >
+          <Text style={[
+            styles.frequencyText,
+            habitType === 'boolean' && styles.frequencyTextSelected,
+          ]}>
+            Yes/No
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[
+            styles.frequencyOption,
+            { borderColor: colors.border },
+            habitType === 'numeric' && { backgroundColor: colors.tint, borderColor: colors.tint },
+          ]}
+          onPress={() => setHabitType('numeric')}
+        >
+          <Text style={[
+            styles.frequencyText,
+            habitType === 'numeric' && styles.frequencyTextSelected,
+          ]}>
+            Measurable
+          </Text>
+        </Pressable>
+      </View>
+
+      {habitType === 'numeric' && (
+        <View style={styles.numericFields}>
+          <View style={styles.numericRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Target</Text>
+              <TextInput
+                style={[styles.input, {
+                  backgroundColor: colors.card,
+                  color: colors.text,
+                  borderColor: colors.border,
+                }]}
+                placeholder="e.g., 8"
+                placeholderTextColor={colors.secondaryText}
+                value={targetValue}
+                onChangeText={setTargetValue}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Unit</Text>
+              <TextInput
+                style={[styles.input, {
+                  backgroundColor: colors.card,
+                  color: colors.text,
+                  borderColor: colors.border,
+                }]}
+                placeholder="e.g., glasses"
+                placeholderTextColor={colors.secondaryText}
+                value={unit}
+                onChangeText={setUnit}
+              />
+            </View>
+          </View>
+        </View>
+      )}
 
       <Text style={styles.label}>Frequency</Text>
       <View style={styles.frequencyRow}>
@@ -243,6 +320,13 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  numericFields: {
+    marginTop: 4,
+  },
+  numericRow: {
+    flexDirection: 'row',
+    gap: 12,
   },
   saveButton: {
     borderRadius: 12,

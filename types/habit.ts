@@ -23,12 +23,17 @@ export const HABIT_COLORS: HabitColor[] = [
   '#8BC34A', '#FF9800', '#795548', '#607D8B',
 ];
 
+export type HabitType = 'boolean' | 'numeric';
+
 export interface Habit {
   id: string;
   name: string;
   description: string;
   color: HabitColor;
   frequency: HabitFrequency;
+  type: HabitType;
+  targetValue: number | null; // e.g. 8 (glasses of water)
+  unit: string; // e.g. "glasses", "minutes", "miles"
   createdAt: number; // Unix timestamp
   archivedAt: number | null;
 }
@@ -37,4 +42,5 @@ export interface HabitCompletion {
   habitId: string;
   date: string; // YYYY-MM-DD
   completed: boolean;
+  value: number; // 1 for boolean, actual value for numeric
 }

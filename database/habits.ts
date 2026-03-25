@@ -1,5 +1,5 @@
 import { getDatabase } from './schema';
-import { Habit, HabitFrequency, HabitColor } from '@/types/habit';
+import { Habit, HabitFrequency, HabitColor, HabitType } from '@/types/habit';
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -34,6 +34,9 @@ function rowToHabit(row: any): Habit {
     description: row.description,
     color: row.color as HabitColor,
     frequency: frequencyFromDb(row.frequency_type, row.frequency_days, row.frequency_times_per_week),
+    type: (row.type as HabitType) || 'boolean',
+    targetValue: row.target_value ?? null,
+    unit: row.unit || '',
     createdAt: row.created_at,
     archivedAt: row.archived_at,
   };
@@ -51,7 +54,10 @@ export async function createHabit(
   name: string,
   description: string,
   color: HabitColor,
-  frequency: HabitFrequency
+  frequency: HabitFrequency,
+  type: HabitType = 'boolean',
+  targetValue: number | null = null,
+  unit: string = ''
 ): Promise<Habit> {
   const db = await getDatabase();
   const id = generateId();
@@ -65,9 +71,9 @@ export async function createHabit(
   const position = (result?.max_pos ?? -1) + 1;
 
   await db.runAsync(
-    `INSERT INTO habits (id, name, description, color, frequency_type, frequency_days, frequency_times_per_week, position, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    id, name, description, color, freq.type, freq.days, freq.timesPerWeek, position, now
+    `INSERT INTO habits (id, name, description, color, frequency_type, frequency_days, frequency_times_per_week, position, type, target_value, unit, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id, name, description, color, freq.type, freq.days, freq.timesPerWeek, position, type, targetValue, unit, now
   );
 
   return {
@@ -76,6 +82,9 @@ export async function createHabit(
     description,
     color,
     frequency,
+    type,
+    targetValue,
+    unit,
     createdAt: now,
     archivedAt: null,
   };
@@ -88,7 +97,7 @@ export async function deleteHabit(id: string): Promise<void> {
 
 export async function updateHabit(
   id: string,
-  updates: Partial<Pick<Habit, 'name' | 'description' | 'color' | 'frequency'>>
+  updates: Partial<Pick<Habit, 'name' | 'description' | 'color' | 'frequency' | 'type' | 'targetValue' | 'unit'>>
 ): Promise<void> {
   const db = await getDatabase();
   const sets: string[] = [];
@@ -110,6 +119,18 @@ export async function updateHabit(
     const freq = frequencyToDb(updates.frequency);
     sets.push('frequency_type = ?', 'frequency_days = ?', 'frequency_times_per_week = ?');
     values.push(freq.type, freq.days, freq.timesPerWeek);
+  }
+  if (updates.type !== undefined) {
+    sets.push('type = ?');
+    values.push(updates.type);
+  }
+  if (updates.targetValue !== undefined) {
+    sets.push('target_value = ?');
+    values.push(updates.targetValue);
+  }
+  if (updates.unit !== undefined) {
+    sets.push('unit = ?');
+    values.push(updates.unit);
   }
 
   if (sets.length === 0) return;
