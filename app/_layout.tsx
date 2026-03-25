@@ -53,6 +53,7 @@ function RootLayoutNav() {
           <Stack.Screen name="create-habit" options={{ presentation: 'modal', title: 'Create Habit' }} />
           <Stack.Screen name="habit-detail" options={{ title: 'Habit Details' }} />
           <Stack.Screen name="edit-habit" options={{ presentation: 'modal', title: 'Edit Habit' }} />
+          <Stack.Screen name="archived-habits" options={{ title: 'Archived Habits' }} />
         </Stack>
       </ThemeProvider>
     </HabitProvider>

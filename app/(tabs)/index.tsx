@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
-import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView } from 'react-native';
+import { useState, useRef, useCallback } from 'react';
+import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withSequence, withTiming } from 'react-native-reanimated';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
@@ -45,21 +46,36 @@ function CheckmarkCell({
   color: string;
   onPress: () => void;
 }) {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePress = () => {
+    scale.value = withSequence(
+      withTiming(0.8, { duration: 80 }),
+      withSpring(1, { damping: 8, stiffness: 300 })
+    );
+    onPress();
+  };
+
   return (
-    <Pressable style={styles.checkCell} onPress={onPress}>
-      <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
-        <Circle
-          cx={CIRCLE_SIZE / 2}
-          cy={CIRCLE_SIZE / 2}
-          r={CIRCLE_RADIUS}
-          stroke={color + (filled ? 'FF' : '40')}
-          strokeWidth={CIRCLE_STROKE}
-          fill={filled ? color : 'transparent'}
-        />
-      </Svg>
-      {filled && (
-        <Text style={styles.checkIcon}>✓</Text>
-      )}
+    <Pressable style={styles.checkCell} onPress={handlePress}>
+      <Animated.View style={[styles.checkCellInner, animatedStyle]}>
+        <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
+          <Circle
+            cx={CIRCLE_SIZE / 2}
+            cy={CIRCLE_SIZE / 2}
+            r={CIRCLE_RADIUS}
+            stroke={color + (filled ? 'FF' : '40')}
+            strokeWidth={CIRCLE_STROKE}
+            fill={filled ? color : 'transparent'}
+          />
+        </Svg>
+        {filled && (
+          <Text style={styles.checkIcon}>✓</Text>
+        )}
+      </Animated.View>
     </Pressable>
   );
 }
@@ -137,6 +153,7 @@ function HabitRow({
   dates,
   onToggle,
   onNumericTap,
+  onLongPress,
   scrollRef,
 }: {
   habit: Habit & { streak: number };
@@ -145,6 +162,7 @@ function HabitRow({
   dates: string[];
   onToggle: (habitId: string, date: string) => void;
   onNumericTap: (habitId: string, date: string, currentValue: number) => void;
+  onLongPress: (habit: Habit) => void;
   scrollRef: React.RefObject<ScrollView | null>;
 }) {
   const colorScheme = useColorScheme();
@@ -156,6 +174,8 @@ function HabitRow({
       <Pressable
         style={styles.habitInfoTouchable}
         onPress={() => router.push({ pathname: '/habit-detail', params: { id: habit.id } })}
+        onLongPress={() => onLongPress(habit)}
+        delayLongPress={400}
       >
         <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
         <View style={styles.habitInfo}>
@@ -282,7 +302,7 @@ function NumericInputModal({
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, completionValues, loading, toggleCompletion, setNumericValue } = useHabits();
+  const { habits, completions, completionValues, loading, toggleCompletion, setNumericValue, archiveHabit, deleteHabit } = useHabits();
   const dates = getLastNDates(VISIBLE_DAYS);
   const headerScrollRef = useRef<ScrollView>(null);
 
@@ -293,6 +313,38 @@ export default function HabitsScreen() {
     date: string;
     currentValue: number;
   } | null>(null);
+
+  const handleLongPress = useCallback((habit: Habit) => {
+    Alert.alert(
+      habit.name,
+      undefined,
+      [
+        {
+          text: 'Edit',
+          onPress: () => router.push({ pathname: '/edit-habit', params: { id: habit.id } }),
+        },
+        {
+          text: 'Archive',
+          onPress: () => archiveHabit(habit.id),
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Delete Habit',
+              `Permanently delete "${habit.name}" and all its history?`,
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Delete', style: 'destructive', onPress: () => deleteHabit(habit.id) },
+              ]
+            );
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    );
+  }, [archiveHabit, deleteHabit]);
 
   if (loading) {
     return (
@@ -336,6 +388,7 @@ export default function HabitsScreen() {
             valuesByDate={completionValues.get(item.id) ?? new Map()}
             dates={dates}
             onToggle={toggleCompletion}
+            onLongPress={handleLongPress}
             onNumericTap={(habitId, date, currentValue) => {
               setNumericModal({
                 habitId,
@@ -454,6 +507,12 @@ const styles = StyleSheet.create({
   },
   checkCell: {
     width: CELL_WIDTH,
+    height: CIRCLE_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkCellInner: {
+    width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
