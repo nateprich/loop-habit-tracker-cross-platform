@@ -6,7 +6,7 @@ import {
   setNumericValue as dbSetNumericValue,
   getCompletionsForDateRange,
   getStreakForHabit,
-  getLast7Dates,
+  getLastNDates,
   formatDate,
 } from '@/database/completions';
 
@@ -39,7 +39,7 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
   const loadData = useCallback(async () => {
     try {
       const allHabits = await getAllHabits();
-      const dates = getLast7Dates();
+      const dates = getLastNDates(30);
       const startDate = dates[0];
       const endDate = dates[dates.length - 1];
 

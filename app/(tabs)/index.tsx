@@ -1,26 +1,40 @@
-import { useState } from 'react';
-import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput } from 'react-native';
-import { Link } from 'expo-router';
+import { useState, useRef, useEffect } from 'react';
+import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView } from 'react-native';
+import { Link, router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useHabits } from '@/context/HabitContext';
-import { getLast7Dates } from '@/database/completions';
+import { getLastNDates } from '@/database/completions';
 import { Habit } from '@/types/habit';
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const VISIBLE_DAYS = 30;
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-function getWeekdayLabel(dateStr: string): string {
+function getDayLabel(dateStr: string): string {
   const d = new Date(dateStr + 'T12:00:00');
   return WEEKDAY_LABELS[d.getDay()];
+}
+
+function getDateNum(dateStr: string): string {
+  return dateStr.slice(8); // DD from YYYY-MM-DD
+}
+
+function isFirstOfMonth(dateStr: string): boolean {
+  return dateStr.endsWith('-01');
+}
+
+function getMonthLabel(dateStr: string): string {
+  const m = parseInt(dateStr.slice(5, 7), 10) - 1;
+  return MONTH_LABELS[m];
 }
 
 // --- Colored circle checkmark (Loop-style) ---
 const CIRCLE_SIZE = 32;
 const CIRCLE_RADIUS = 13;
 const CIRCLE_STROKE = 2.5;
-const CHECK_ICON = '✓';
 
 function CheckmarkCell({
   filled,
@@ -34,7 +48,6 @@ function CheckmarkCell({
   return (
     <Pressable style={styles.checkCell} onPress={onPress}>
       <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
-        {/* Background ring (always visible) */}
         <Circle
           cx={CIRCLE_SIZE / 2}
           cy={CIRCLE_SIZE / 2}
@@ -72,7 +85,6 @@ function NumericCell({
   return (
     <Pressable style={styles.checkCell} onPress={onPress}>
       <Svg width={CIRCLE_SIZE} height={CIRCLE_SIZE}>
-        {/* Background ring track */}
         <Circle
           cx={CIRCLE_SIZE / 2}
           cy={CIRCLE_SIZE / 2}
@@ -81,7 +93,6 @@ function NumericCell({
           strokeWidth={CIRCLE_STROKE}
           fill="transparent"
         />
-        {/* Progress arc */}
         {value > 0 && (
           <Circle
             cx={CIRCLE_SIZE / 2}
@@ -107,6 +118,18 @@ function NumericCell({
   );
 }
 
+// --- Date column header cell ---
+function DateHeaderCell({ dateStr, colors }: { dateStr: string; colors: any }) {
+  const dayLabel = getDayLabel(dateStr);
+  const dateNum = getDateNum(dateStr);
+  return (
+    <View style={styles.dateHeaderCell}>
+      <Text style={[styles.dayOfWeekLabel, { color: colors.secondaryText }]}>{dayLabel}</Text>
+      <Text style={[styles.dateNumLabel, { color: colors.text }]}>{dateNum}</Text>
+    </View>
+  );
+}
+
 function HabitRow({
   habit,
   completedDates,
@@ -114,6 +137,7 @@ function HabitRow({
   dates,
   onToggle,
   onNumericTap,
+  scrollRef,
 }: {
   habit: Habit & { streak: number };
   completedDates: Set<string>;
@@ -121,28 +145,44 @@ function HabitRow({
   dates: string[];
   onToggle: (habitId: string, date: string) => void;
   onNumericTap: (habitId: string, date: string, currentValue: number) => void;
+  scrollRef: React.RefObject<ScrollView | null>;
 }) {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
+  const rowScrollRef = useRef<ScrollView>(null);
 
   return (
     <View style={[styles.habitRow, { borderBottomColor: colors.border }]}>
-      <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
-      <View style={styles.habitInfo}>
-        <Text style={styles.habitName}>{habit.name}</Text>
-        {habit.type === 'numeric' && habit.unit ? (
-          <Text style={[styles.streakText, { color: colors.secondaryText }]}>
-            {habit.streak > 0 ? `${habit.streak}d streak · ` : ''}{habit.targetValue ?? '—'} {habit.unit}
-          </Text>
-        ) : (
-          habit.streak > 0 && (
-            <Text style={[styles.streakText, { color: colors.secondaryText }]}>
-              {habit.streak}d streak
+      <Pressable
+        style={styles.habitInfoTouchable}
+        onPress={() => router.push({ pathname: '/habit-detail', params: { id: habit.id } })}
+      >
+        <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
+        <View style={styles.habitInfo}>
+          <Text style={styles.habitName} numberOfLines={1}>{habit.name}</Text>
+          {habit.type === 'numeric' && habit.unit ? (
+            <Text style={[styles.streakText, { color: colors.secondaryText }]} numberOfLines={1}>
+              {habit.streak > 0 ? `${habit.streak}d · ` : ''}{habit.targetValue ?? '—'} {habit.unit}
             </Text>
-          )
-        )}
-      </View>
-      <View style={styles.checksContainer}>
+          ) : (
+            habit.streak > 0 && (
+              <Text style={[styles.streakText, { color: colors.secondaryText }]}>
+                {habit.streak}d streak
+              </Text>
+            )
+          )}
+        </View>
+      </Pressable>
+      <ScrollView
+        ref={rowScrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.checksScroll}
+        onLayout={() => {
+          // Scroll to end (most recent) on mount
+          rowScrollRef.current?.scrollToEnd({ animated: false });
+        }}
+      >
         {dates.map((date) =>
           habit.type === 'numeric' ? (
             <NumericCell
@@ -161,7 +201,7 @@ function HabitRow({
             />
           )
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -201,11 +241,6 @@ function NumericInputModal({
   const colors = Colors[colorScheme];
   const [text, setText] = useState(currentValue > 0 ? String(currentValue) : '');
 
-  const handleSave = () => {
-    const num = parseFloat(text);
-    onSave(isNaN(num) ? 0 : num);
-  };
-
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
       <Pressable style={styles.modalOverlay} onPress={onCancel}>
@@ -228,7 +263,13 @@ function NumericInputModal({
             <Pressable style={[styles.modalBtn, { borderColor: colors.border }]} onPress={onCancel}>
               <Text style={{ color: colors.text }}>Cancel</Text>
             </Pressable>
-            <Pressable style={[styles.modalBtn, { backgroundColor: colors.tint }]} onPress={handleSave}>
+            <Pressable
+              style={[styles.modalBtn, { backgroundColor: colors.tint }]}
+              onPress={() => {
+                const num = parseFloat(text);
+                onSave(isNaN(num) ? 0 : num);
+              }}
+            >
               <Text style={{ color: '#fff', fontWeight: '600' }}>Save</Text>
             </Pressable>
           </View>
@@ -242,7 +283,8 @@ export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
   const { habits, completions, completionValues, loading, toggleCompletion, setNumericValue } = useHabits();
-  const dates = getLast7Dates();
+  const dates = getLastNDates(VISIBLE_DAYS);
+  const headerScrollRef = useRef<ScrollView>(null);
 
   const [numericModal, setNumericModal] = useState<{
     habitId: string;
@@ -262,19 +304,24 @@ export default function HabitsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Weekday header */}
+      {/* Date header row */}
       {habits.length > 0 && (
-        <View style={[styles.weekdayHeader, { borderBottomColor: colors.border }]}>
-          <View style={styles.habitInfoPlaceholder} />
-          <View style={styles.checksContainer}>
+        <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
+          <View style={styles.headerInfoPlaceholder} />
+          <ScrollView
+            ref={headerScrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.checksScroll}
+            scrollEnabled={false}
+            onLayout={() => {
+              headerScrollRef.current?.scrollToEnd({ animated: false });
+            }}
+          >
             {dates.map((date) => (
-              <View key={date} style={styles.checkCell}>
-                <Text style={[styles.weekdayLabel, { color: colors.secondaryText }]}>
-                  {getWeekdayLabel(date)}
-                </Text>
-              </View>
+              <DateHeaderCell key={date} dateStr={date} colors={colors} />
             ))}
-          </View>
+          </ScrollView>
         </View>
       )}
 
@@ -298,6 +345,7 @@ export default function HabitsScreen() {
                 currentValue,
               });
             }}
+            scrollRef={headerScrollRef}
           />
         )}
         contentContainerStyle={habits.length === 0 ? styles.emptyContainer : styles.list}
@@ -329,6 +377,8 @@ export default function HabitsScreen() {
   );
 }
 
+const CELL_WIDTH = CIRCLE_SIZE + 4; // 36px per column
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -344,47 +394,66 @@ const styles = StyleSheet.create({
   emptyContainer: {
     flex: 1,
   },
-  weekdayHeader: {
+  // Date header
+  headerRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    alignItems: 'flex-end',
+    paddingVertical: 4,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  habitInfoPlaceholder: {
-    flex: 1,
+  headerInfoPlaceholder: {
+    width: 120,
   },
+  dateHeaderCell: {
+    width: CELL_WIDTH,
+    alignItems: 'center',
+    paddingVertical: 2,
+  },
+  dayOfWeekLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  dateNumLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  // Habit rows
   habitRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingRight: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  habitInfoTouchable: {
+    width: 120,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
   },
   colorStrip: {
     width: 4,
     height: '100%',
     minHeight: 40,
     borderRadius: 2,
-    marginRight: 12,
+    marginRight: 8,
   },
   habitInfo: {
     flex: 1,
+    paddingRight: 4,
   },
   habitName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
   },
   streakText: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 11,
+    marginTop: 1,
   },
-  checksContainer: {
+  checksScroll: {
     flexDirection: 'row',
-    gap: 4,
+    gap: 0,
   },
   checkCell: {
-    width: CIRCLE_SIZE,
+    width: CELL_WIDTH,
     height: CIRCLE_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
@@ -399,10 +468,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontSize: 10,
     fontWeight: '700',
-  },
-  weekdayLabel: {
-    fontSize: 11,
-    fontWeight: '600',
   },
   emptyState: {
     flex: 1,

@@ -116,9 +116,13 @@ export function formatDate(date: Date): string {
 }
 
 export function getLast7Dates(): string[] {
+  return getLastNDates(7);
+}
+
+export function getLastNDates(n: number): string[] {
   const dates: string[] = [];
   const today = new Date();
-  for (let i = 6; i >= 0; i--) {
+  for (let i = n - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
     dates.push(formatDate(d));
