@@ -167,3 +167,45 @@ export function getLastNDates(n: number): string[] {
   }
   return dates;
 }
+
+/** Returns completion counts by day of week (0=Sun..6=Sat) over last N days */
+export async function getCompletionsByDayOfWeek(
+  habitIds: string[],
+  days: number = 90
+): Promise<{ day: number; completed: number; total: number }[]> {
+  if (habitIds.length === 0) {
+    return Array.from({ length: 7 }, (_, i) => ({ day: i, completed: 0, total: 0 }));
+  }
+
+  const dates = getLastNDates(days);
+  const startDate = dates[0];
+  const endDate = dates[dates.length - 1];
+
+  const db = await getDatabase();
+  const placeholders = habitIds.map(() => '?').join(',');
+  const rows = await db.getAllAsync<{ date: string; value: number }>(
+    `SELECT date, value FROM completions
+     WHERE habit_id IN (${placeholders}) AND date >= ? AND date <= ? AND value > 0`,
+    ...habitIds, startDate, endDate
+  );
+
+  // Count completions per day of week
+  const completedByDay = new Array(7).fill(0);
+  for (const row of rows) {
+    const dayOfWeek = new Date(row.date + 'T12:00:00').getDay();
+    completedByDay[dayOfWeek]++;
+  }
+
+  // Count total possible per day of week (habits * occurrences of that day)
+  const totalByDay = new Array(7).fill(0);
+  for (const dateStr of dates) {
+    const dayOfWeek = new Date(dateStr + 'T12:00:00').getDay();
+    totalByDay[dayOfWeek] += habitIds.length;
+  }
+
+  return Array.from({ length: 7 }, (_, i) => ({
+    day: i,
+    completed: completedByDay[i],
+    total: totalByDay[i],
+  }));
+}

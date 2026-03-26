@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
 import Svg, { Rect, Text as SvgText, Line } from 'react-native-svg';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useHabits } from '@/context/HabitContext';
-import { formatDate, getLastNDates } from '@/database/completions';
+import { formatDate, getLastNDates, getCompletionsByDayOfWeek } from '@/database/completions';
 
 // --- Bar chart for weekly completion rates ---
 function WeeklyCompletionChart({
@@ -120,6 +120,82 @@ function HabitScoreBar({
   );
 }
 
+// --- Frequency histogram: completion rate by day of week (90 days) ---
+function FrequencyHistogram({
+  habitIds,
+  colors,
+}: {
+  habitIds: string[];
+  colors: typeof Colors.light;
+}) {
+  const [data, setData] = useState<{ day: number; pct: number }[]>([]);
+
+  useEffect(() => {
+    if (habitIds.length === 0) return;
+    getCompletionsByDayOfWeek(habitIds, 90).then((result) => {
+      setData(
+        result.map((r) => ({
+          day: r.day,
+          pct: r.total > 0 ? Math.round((r.completed / r.total) * 100) : 0,
+        }))
+      );
+    });
+  }, [habitIds.join(',')]);
+
+  if (data.length === 0) return null;
+
+  const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const chartW = 280;
+  const chartH = 120;
+  const barW = 28;
+  const gap = (chartW - barW * 7) / 8;
+  const maxPct = Math.max(...data.map((d) => d.pct), 1);
+
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Svg width={chartW} height={chartH + 28}>
+        {data.map((d, i) => {
+          const x = gap + i * (barW + gap);
+          const barH = (d.pct / maxPct) * chartH;
+          return (
+            <React.Fragment key={d.day}>
+              <Rect
+                x={x}
+                y={chartH - barH}
+                width={barW}
+                height={Math.max(barH, 2)}
+                rx={4}
+                fill={d.pct >= 80 ? colors.success : d.pct >= 50 ? colors.tint : colors.border}
+              />
+              {d.pct > 0 && (
+                <SvgText
+                  x={x + barW / 2}
+                  y={chartH - barH - 4}
+                  fontSize={10}
+                  fill={colors.secondaryText}
+                  textAnchor="middle"
+                >
+                  {d.pct}%
+                </SvgText>
+              )}
+              <SvgText
+                x={x + barW / 2}
+                y={chartH + 16}
+                fontSize={10}
+                fill={colors.text}
+                textAnchor="middle"
+                fontWeight="500"
+              >
+                {DAYS[i]}
+              </SvgText>
+            </React.Fragment>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+}
+
 import React from 'react';
 
 export default function StatisticsScreen() {
@@ -213,6 +289,15 @@ export default function StatisticsScreen() {
           completionValues={completionValues}
           colors={colors}
         />
+      </View>
+
+      {/* Frequency histogram */}
+      <View style={[styles.card, { backgroundColor: colors.card }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Completion by Day of Week</Text>
+        <Text style={[styles.sectionSubtitle, { color: colors.secondaryText }]}>
+          Average completion rate over 90 days
+        </Text>
+        <FrequencyHistogram habitIds={habits.map((h) => h.id)} colors={colors} />
       </View>
 
       {/* Habit strength scores */}

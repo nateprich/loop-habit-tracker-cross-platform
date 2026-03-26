@@ -24,8 +24,7 @@
 16. Score chart (SVG line chart on habit detail, 90-day trend)
 17. Streak history chart (top 10 streaks as horizontal bars on habit detail)
 
-## Remaining — Medium Priority
-18. Frequency histogram — Chart showing completion by day of week
+18. Frequency histogram (completion by day of week, 90-day aggregate on Statistics tab)
 
 ## Remaining — Lower Priority
 19. Home screen widgets — Show habit checkboxes or streaks
