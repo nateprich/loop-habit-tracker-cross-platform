@@ -8,6 +8,7 @@ import {
   updateHabit as dbUpdateHabit,
   archiveHabit as dbArchiveHabit,
   unarchiveHabit as dbUnarchiveHabit,
+  reorderHabits as dbReorderHabits,
 } from '@/database/habits';
 import {
   toggleCompletion as dbToggleCompletion,
@@ -42,7 +43,8 @@ interface HabitContextType {
   toggleCompletion: (habitId: string, date: string) => Promise<void>;
   skipDay: (habitId: string, date: string) => Promise<void>;
   setNumericValue: (habitId: string, date: string, value: number) => Promise<void>;
-  skippedDays: Map<string, Set<string>>; // habitId -> Set of skipped date strings
+  reorderHabits: (orderedIds: string[]) => Promise<void>;
+  skippedDays: Map<string, Set<string>>;
   refresh: () => Promise<void>;
 }
 
@@ -170,6 +172,11 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
     await loadData();
   }, [loadData]);
 
+  const reorderHabits = useCallback(async (orderedIds: string[]) => {
+    await dbReorderHabits(orderedIds);
+    await loadData();
+  }, [loadData]);
+
   return (
     <HabitContext.Provider
       value={{
@@ -186,6 +193,7 @@ export function HabitProvider({ children }: { children: React.ReactNode }) {
         toggleCompletion,
         skipDay,
         setNumericValue,
+        reorderHabits,
         skippedDays,
         refresh: loadData,
       }}

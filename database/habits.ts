@@ -113,6 +113,13 @@ export async function deleteHabit(id: string): Promise<void> {
   await db.runAsync('DELETE FROM habits WHERE id = ?', id);
 }
 
+export async function reorderHabits(orderedIds: string[]): Promise<void> {
+  const db = await getDatabase();
+  for (let i = 0; i < orderedIds.length; i++) {
+    await db.runAsync('UPDATE habits SET position = ? WHERE id = ?', i, orderedIds[i]);
+  }
+}
+
 export async function updateHabit(
   id: string,
   updates: Partial<Pick<Habit, 'name' | 'description' | 'color' | 'frequency' | 'type' | 'targetValue' | 'unit'>>

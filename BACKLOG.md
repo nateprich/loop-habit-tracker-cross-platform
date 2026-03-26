@@ -13,10 +13,10 @@
 - Enhanced Statistics tab (summary cards, weekly chart, per-habit score bars)
 - Settings tab (archived habits link, theme display, about/attribution)
 - Archive/restore/delete flow
+10. Drag-to-reorder habits (up/down arrows in reorder mode)
+11. Full backup & restore (JSON export/import via Settings)
 
 ## Remaining — Medium Priority
-10. Drag-to-reorder habits — DB supports position but no reorder UI yet
-11. Full backup & restore — Export/import SQLite database file
 12. CSV import — Import habit data from CSV
 13. Add 8 missing colors — Amber, Cyan, Lime, Deep Orange, Yellow, Light Blue, Grey, Black (match Loop's 20 colors)
 14. Sorting options — Sort by name, color, score, status, manually

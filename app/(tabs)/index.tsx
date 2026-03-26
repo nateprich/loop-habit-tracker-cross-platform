@@ -255,6 +255,45 @@ function EmptyState() {
   );
 }
 
+function ReorderRow({
+  habit,
+  index,
+  total,
+  onMoveUp,
+  onMoveDown,
+  colors,
+}: {
+  habit: Habit & { streak: number };
+  index: number;
+  total: number;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  colors: typeof Colors.light;
+}) {
+  return (
+    <View style={[styles.reorderRow, { borderBottomColor: colors.border }]}>
+      <View style={[styles.colorStrip, { backgroundColor: habit.color }]} />
+      <Text style={[styles.reorderName, { color: colors.text }]} numberOfLines={1}>{habit.name}</Text>
+      <View style={styles.reorderButtons}>
+        <Pressable
+          style={[styles.reorderArrow, index === 0 && styles.reorderArrowDisabled]}
+          onPress={onMoveUp}
+          disabled={index === 0}
+        >
+          <Text style={[styles.reorderArrowText, { color: index === 0 ? colors.border : colors.tint }]}>▲</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.reorderArrow, index === total - 1 && styles.reorderArrowDisabled]}
+          onPress={onMoveDown}
+          disabled={index === total - 1}
+        >
+          <Text style={[styles.reorderArrowText, { color: index === total - 1 ? colors.border : colors.tint }]}>▼</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 function NumericInputModal({
   visible,
   habitName,
@@ -315,9 +354,18 @@ function NumericInputModal({
 export default function HabitsScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme];
-  const { habits, completions, completionValues, skippedDays, loading, toggleCompletion, skipDay, setNumericValue, archiveHabit, deleteHabit } = useHabits();
+  const { habits, completions, completionValues, skippedDays, loading, toggleCompletion, skipDay, setNumericValue, archiveHabit, deleteHabit, reorderHabits } = useHabits();
   const dates = getLastNDates(VISIBLE_DAYS);
   const headerScrollRef = useRef<ScrollView>(null);
+  const [reorderMode, setReorderMode] = useState(false);
+
+  const moveHabit = useCallback((index: number, direction: -1 | 1) => {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= habits.length) return;
+    const ids = habits.map(h => h.id);
+    [ids[index], ids[newIndex]] = [ids[newIndex], ids[index]];
+    reorderHabits(ids);
+  }, [habits, reorderHabits]);
 
   const [numericModal, setNumericModal] = useState<{
     habitId: string;
@@ -369,8 +417,19 @@ export default function HabitsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Reorder toggle */}
+      {habits.length > 1 && (
+        <View style={[styles.reorderBar, { borderBottomColor: colors.border }]}>
+          <Pressable onPress={() => setReorderMode(!reorderMode)}>
+            <Text style={[styles.reorderBtn, { color: colors.tint }]}>
+              {reorderMode ? 'Done' : 'Reorder'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* Date header row */}
-      {habits.length > 0 && (
+      {habits.length > 0 && !reorderMode && (
         <View style={[styles.headerRow, { borderBottomColor: colors.border }]}>
           <View style={styles.headerInfoPlaceholder} />
           <ScrollView
@@ -394,28 +453,39 @@ export default function HabitsScreen() {
       <FlatList
         data={habits}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <HabitRow
-            habit={item}
-            completedDates={completions.get(item.id) ?? new Set()}
-            skippedDates={skippedDays.get(item.id) ?? new Set()}
-            valuesByDate={completionValues.get(item.id) ?? new Map()}
-            dates={dates}
-            onToggle={toggleCompletion}
-            onSkip={skipDay}
-            onLongPress={handleLongPress}
-            onNumericTap={(habitId, date, currentValue) => {
-              setNumericModal({
-                habitId,
-                habitName: item.name,
-                unit: item.unit,
-                date,
-                currentValue,
-              });
-            }}
-            scrollRef={headerScrollRef}
-          />
-        )}
+        renderItem={({ item, index }) =>
+          reorderMode ? (
+            <ReorderRow
+              habit={item}
+              index={index}
+              total={habits.length}
+              onMoveUp={() => moveHabit(index, -1)}
+              onMoveDown={() => moveHabit(index, 1)}
+              colors={colors}
+            />
+          ) : (
+            <HabitRow
+              habit={item}
+              completedDates={completions.get(item.id) ?? new Set()}
+              skippedDates={skippedDays.get(item.id) ?? new Set()}
+              valuesByDate={completionValues.get(item.id) ?? new Map()}
+              dates={dates}
+              onToggle={toggleCompletion}
+              onSkip={skipDay}
+              onLongPress={handleLongPress}
+              onNumericTap={(habitId, date, currentValue) => {
+                setNumericModal({
+                  habitId,
+                  habitName: item.name,
+                  unit: item.unit,
+                  date,
+                  currentValue,
+                });
+              }}
+              scrollRef={headerScrollRef}
+            />
+          )
+        }
         contentContainerStyle={habits.length === 0 ? styles.emptyContainer : styles.list}
         ListEmptyComponent={EmptyState}
       />
@@ -563,6 +633,48 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
     textAlign: 'center',
+  },
+  reorderBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  reorderBtn: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  reorderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  reorderName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  reorderButtons: {
+    flexDirection: 'row',
+    gap: 4,
+    marginRight: 12,
+  },
+  reorderArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reorderArrowDisabled: {
+    opacity: 0.3,
+  },
+  reorderArrowText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   fab: {
     position: 'absolute',
