@@ -15,10 +15,10 @@
 - Archive/restore/delete flow
 10. Drag-to-reorder habits (up/down arrows in reorder mode)
 11. Full backup & restore (JSON export/import via Settings)
+12. CSV import (paste CSV in Settings > Import CSV)
+13. Full 20-color palette (added Amber, Cyan, Lime, Deep Orange, Yellow, Light Blue, Grey, Black)
 
 ## Remaining — Medium Priority
-12. CSV import — Import habit data from CSV
-13. Add 8 missing colors — Amber, Cyan, Lime, Deep Orange, Yellow, Light Blue, Grey, Black (match Loop's 20 colors)
 14. Sorting options — Sort by name, color, score, status, manually
 15. Flexible frequencies — "Every X days", "X times per month"
 16. Score chart — Line chart of habit score over weeks/months (getHabitScoreHistory backend exists)

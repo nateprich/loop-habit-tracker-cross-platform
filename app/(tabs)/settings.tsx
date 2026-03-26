@@ -6,6 +6,7 @@ import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useHabits } from '@/context/HabitContext';
 import { exportBackup, getBackupJson, importBackup } from '@/database/backup';
+import { importCSV } from '@/database/csv-import';
 
 function SettingsRow({
   label,
@@ -40,8 +41,10 @@ export default function SettingsScreen() {
   const { archivedHabits, refresh } = useHabits();
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showCsvModal, setShowCsvModal] = useState(false);
   const [exportJson, setExportJson] = useState('');
   const [importJson, setImportJson] = useState('');
+  const [csvText, setCsvText] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleExport = async () => {
@@ -93,6 +96,25 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleCsvImport = async () => {
+    if (!csvText.trim()) {
+      Alert.alert('No Data', 'Please paste your CSV data first.');
+      return;
+    }
+    try {
+      setLoading(true);
+      const result = await importCSV(csvText);
+      await refresh();
+      setShowCsvModal(false);
+      setCsvText('');
+      Alert.alert('Imported', `Created ${result.habits} habits with ${result.completions} entries.`);
+    } catch (e: any) {
+      Alert.alert('Import Failed', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container}>
       <Text style={[styles.sectionHeader, { color: colors.secondaryText }]}>Habits</Text>
@@ -115,6 +137,11 @@ export default function SettingsScreen() {
         <SettingsRow
           label="Import Backup"
           onPress={() => setShowImportModal(true)}
+          colors={colors}
+        />
+        <SettingsRow
+          label="Import CSV"
+          onPress={() => setShowCsvModal(true)}
           colors={colors}
         />
       </View>
@@ -202,6 +229,40 @@ export default function SettingsScreen() {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.restoreBtnText}>Restore</Text>
+            )}
+          </Pressable>
+        </View>
+      </Modal>
+
+      {/* CSV Import modal */}
+      <Modal visible={showCsvModal} animationType="slide" onRequestClose={() => setShowCsvModal(false)}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Import CSV</Text>
+            <Pressable onPress={() => { setShowCsvModal(false); setCsvText(''); }}>
+              <Text style={[styles.modalClose, { color: colors.tint }]}>Cancel</Text>
+            </Pressable>
+          </View>
+          <Text style={[styles.modalHint, { color: colors.secondaryText }]}>
+            Paste CSV data. Format: first column "Date" (YYYY-MM-DD), remaining columns are habit names with values (1=done, 0=skip).
+          </Text>
+          <TextInput
+            style={[styles.jsonInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+            value={csvText}
+            onChangeText={setCsvText}
+            multiline
+            placeholder={'Date,Exercise,Reading\n2024-01-01,1,0\n2024-01-02,1,1'}
+            placeholderTextColor={colors.secondaryText}
+          />
+          <Pressable
+            style={[styles.restoreBtn, { backgroundColor: colors.tint, opacity: loading ? 0.5 : 1 }]}
+            onPress={handleCsvImport}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.restoreBtnText}>Import</Text>
             )}
           </Pressable>
         </View>

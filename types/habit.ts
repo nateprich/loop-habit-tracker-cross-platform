@@ -10,17 +10,27 @@ export type HabitColor =
   | '#673AB7' // Deep Purple
   | '#3F51B5' // Indigo
   | '#2196F3' // Blue
+  | '#03A9F4' // Light Blue
   | '#009688' // Teal
+  | '#00BCD4' // Cyan
   | '#4CAF50' // Green
   | '#8BC34A' // Light Green
+  | '#CDDC39' // Lime
+  | '#FFEB3B' // Yellow
+  | '#FFC107' // Amber
   | '#FF9800' // Orange
+  | '#FF5722' // Deep Orange
   | '#795548' // Brown
-  | '#607D8B'; // Blue Grey
+  | '#607D8B' // Blue Grey
+  | '#9E9E9E' // Grey
+  | '#212121'; // Black
 
 export const HABIT_COLORS: HabitColor[] = [
   '#F44336', '#E91E63', '#9C27B0', '#673AB7',
-  '#3F51B5', '#2196F3', '#009688', '#4CAF50',
-  '#8BC34A', '#FF9800', '#795548', '#607D8B',
+  '#3F51B5', '#2196F3', '#03A9F4', '#00BCD4',
+  '#009688', '#4CAF50', '#8BC34A', '#CDDC39',
+  '#FFEB3B', '#FFC107', '#FF9800', '#FF5722',
+  '#795548', '#607D8B', '#9E9E9E', '#212121',
 ];
 
 export type HabitType = 'boolean' | 'numeric';
