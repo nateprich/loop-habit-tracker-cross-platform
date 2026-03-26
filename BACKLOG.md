@@ -21,9 +21,10 @@
 14. Sorting options (manual, name, color, score, streak — pill picker in toolbar)
 15. Flexible frequencies (every X days, X times per month — in create/edit screens)
 
+16. Score chart (SVG line chart on habit detail, 90-day trend)
+17. Streak history chart (top 10 streaks as horizontal bars on habit detail)
+
 ## Remaining — Medium Priority
-16. Score chart — Line chart of habit score over weeks/months (getHabitScoreHistory backend exists)
-17. Streak history chart — Visual timeline of all streaks over time
 18. Frequency histogram — Chart showing completion by day of week
 
 ## Remaining — Lower Priority

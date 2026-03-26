@@ -1,12 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { StyleSheet, ScrollView, Pressable } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import Svg, { Circle, Rect } from 'react-native-svg';
+import Svg, { Circle, Rect, Polyline, Line, Text as SvgText } from 'react-native-svg';
 import { Text, View } from '@/components/Themed';
 import { useColorScheme } from '@/components/useColorScheme';
 import Colors from '@/constants/Colors';
 import { useHabits } from '@/context/HabitContext';
 import { formatDate } from '@/database/completions';
+import { getHabitScoreHistory } from '@/database/score';
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -177,6 +178,26 @@ export default function HabitDetailScreen() {
         target={habit.targetValue ?? 1}
         colors={colors}
       />
+
+      {/* Score trend chart */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Strength Over Time</Text>
+      <ScoreChart
+        habitId={habit.id}
+        targetValue={habit.targetValue}
+        habitColor={habit.color}
+        colors={colors}
+      />
+
+      {/* Streak history */}
+      <Text style={[styles.sectionTitle, { color: colors.text }]}>Streak History</Text>
+      <StreakHistory
+        completions={habitCompletions}
+        values={habitValues}
+        isNumeric={habit.type === 'numeric'}
+        target={habit.targetValue ?? 1}
+        habitColor={habit.color}
+        colors={colors}
+      />
     </ScrollView>
   );
 }
@@ -342,6 +363,222 @@ function WeeklyBreakdown({
   );
 }
 
+// --- Score Line Chart (last 90 days) ---
+function ScoreChart({
+  habitId,
+  targetValue,
+  habitColor,
+  colors,
+}: {
+  habitId: string;
+  targetValue: number | null;
+  habitColor: string;
+  colors: any;
+}) {
+  const [history, setHistory] = useState<{ date: string; score: number }[]>([]);
+
+  useEffect(() => {
+    getHabitScoreHistory(habitId, targetValue, 90).then(setHistory);
+  }, [habitId, targetValue]);
+
+  if (history.length < 2) return null;
+
+  const chartW = 300;
+  const chartH = 120;
+  const padL = 30;
+  const padR = 8;
+  const padT = 8;
+  const padB = 24;
+  const plotW = chartW - padL - padR;
+  const plotH = chartH - padT - padB;
+
+  // Sample ~30 points for a smooth line
+  const step = Math.max(1, Math.floor(history.length / 30));
+  const sampled = history.filter((_, i) => i % step === 0 || i === history.length - 1);
+
+  const points = sampled.map((pt, i) => {
+    const x = padL + (i / (sampled.length - 1)) * plotW;
+    const y = padT + plotH - (pt.score / 100) * plotH;
+    return `${x},${y}`;
+  }).join(' ');
+
+  // Y-axis labels
+  const yLabels = [0, 25, 50, 75, 100];
+
+  // X-axis: show first and last month
+  const firstDate = history[0].date;
+  const lastDate = history[history.length - 1].date;
+  const firstMonth = MONTH_LABELS[parseInt(firstDate.slice(5, 7), 10) - 1];
+  const lastMonth = MONTH_LABELS[parseInt(lastDate.slice(5, 7), 10) - 1];
+
+  return (
+    <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
+      <Svg width={chartW} height={chartH}>
+        {/* Grid lines */}
+        {yLabels.map((v) => {
+          const y = padT + plotH - (v / 100) * plotH;
+          return (
+            <Line
+              key={v}
+              x1={padL}
+              y1={y}
+              x2={chartW - padR}
+              y2={y}
+              stroke={colors.border}
+              strokeWidth={0.5}
+            />
+          );
+        })}
+        {/* Y labels */}
+        {yLabels.map((v) => {
+          const y = padT + plotH - (v / 100) * plotH;
+          return (
+            <SvgText
+              key={`l${v}`}
+              x={padL - 4}
+              y={y + 3}
+              fontSize={9}
+              fill={colors.secondaryText}
+              textAnchor="end"
+            >
+              {v}%
+            </SvgText>
+          );
+        })}
+        {/* X labels */}
+        <SvgText x={padL} y={chartH - 4} fontSize={10} fill={colors.secondaryText}>
+          {firstMonth}
+        </SvgText>
+        <SvgText x={chartW - padR} y={chartH - 4} fontSize={10} fill={colors.secondaryText} textAnchor="end">
+          {lastMonth}
+        </SvgText>
+        {/* Line */}
+        <Polyline
+          points={points}
+          fill="none"
+          stroke={habitColor}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </View>
+  );
+}
+
+// --- Streak History (visual timeline) ---
+function StreakHistory({
+  completions,
+  values,
+  isNumeric,
+  target,
+  habitColor,
+  colors,
+}: {
+  completions: Set<string>;
+  values: Map<string, number>;
+  isNumeric: boolean;
+  target: number;
+  habitColor: string;
+  colors: any;
+}) {
+  const streaks = useMemo(() => {
+    // Get all completed dates sorted
+    const sortedDates = Array.from(completions).sort();
+    if (sortedDates.length === 0) return [];
+
+    const result: { start: string; end: string; length: number }[] = [];
+    let streakStart = '';
+    let streakEnd = '';
+    let prevDate: Date | null = null;
+
+    for (const dateStr of sortedDates) {
+      if (isNumeric) {
+        const val = values.get(dateStr) ?? 0;
+        if (val < target) {
+          if (streakStart) {
+            result.push({ start: streakStart, end: streakEnd, length: daysBetween(streakStart, streakEnd) + 1 });
+          }
+          streakStart = '';
+          streakEnd = '';
+          prevDate = null;
+          continue;
+        }
+      }
+
+      const d = new Date(dateStr + 'T12:00:00');
+      if (prevDate) {
+        const diff = Math.round((d.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff === 1) {
+          streakEnd = dateStr;
+        } else {
+          if (streakStart) {
+            result.push({ start: streakStart, end: streakEnd, length: daysBetween(streakStart, streakEnd) + 1 });
+          }
+          streakStart = dateStr;
+          streakEnd = dateStr;
+        }
+      } else {
+        streakStart = dateStr;
+        streakEnd = dateStr;
+      }
+      prevDate = d;
+    }
+    if (streakStart) {
+      result.push({ start: streakStart, end: streakEnd, length: daysBetween(streakStart, streakEnd) + 1 });
+    }
+
+    // Only show streaks >= 2 days, sorted by length desc, top 10
+    return result
+      .filter(s => s.length >= 2)
+      .sort((a, b) => b.length - a.length)
+      .slice(0, 10);
+  }, [completions, values, isNumeric, target]);
+
+  if (streaks.length === 0) {
+    return (
+      <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
+        <Text style={[styles.emptyChartText, { color: colors.secondaryText }]}>
+          No streaks of 2+ days yet
+        </Text>
+      </View>
+    );
+  }
+
+  const maxLen = Math.max(...streaks.map(s => s.length));
+  const barW = 200;
+
+  return (
+    <View style={[styles.chartCard, { backgroundColor: colors.card }]}>
+      {streaks.map((s, i) => {
+        const width = Math.max((s.length / maxLen) * barW, 8);
+        const startLabel = formatShortDate(s.start);
+        return (
+          <View key={i} style={styles.streakRow}>
+            <Text style={[styles.streakLabel, { color: colors.secondaryText }]}>{startLabel}</Text>
+            <View style={[styles.streakBarTrack, { backgroundColor: colors.background }]}>
+              <View style={[styles.streakBarFill, { backgroundColor: habitColor, width }]} />
+            </View>
+            <Text style={[styles.streakLength, { color: colors.text }]}>{s.length}d</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+function daysBetween(a: string, b: string): number {
+  const da = new Date(a + 'T12:00:00');
+  const db = new Date(b + 'T12:00:00');
+  return Math.round((db.getTime() - da.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatShortDate(dateStr: string): string {
+  const m = parseInt(dateStr.slice(5, 7), 10) - 1;
+  const d = parseInt(dateStr.slice(8, 10), 10);
+  return `${MONTH_LABELS[m]} ${d}`;
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -477,6 +714,46 @@ const styles = StyleSheet.create({
   weeklyPct: {
     width: 36,
     fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  // Charts
+  chartCard: {
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  emptyChartText: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
+  // Streak history
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    gap: 8,
+    marginBottom: 6,
+  },
+  streakLabel: {
+    width: 50,
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  streakBarTrack: {
+    flex: 1,
+    height: 14,
+    borderRadius: 7,
+    overflow: 'hidden',
+  },
+  streakBarFill: {
+    height: '100%',
+    borderRadius: 7,
+  },
+  streakLength: {
+    width: 28,
+    fontSize: 12,
     fontWeight: '600',
     textAlign: 'right',
   },
