@@ -1,7 +1,9 @@
 export type HabitFrequency =
   | { type: 'daily' }
   | { type: 'weekly'; days: number[] } // 0=Sun, 1=Mon, ..., 6=Sat
-  | { type: 'xPerWeek'; timesPerWeek: number };
+  | { type: 'xPerWeek'; timesPerWeek: number }
+  | { type: 'everyXDays'; intervalDays: number }
+  | { type: 'xPerMonth'; timesPerMonth: number };
 
 export type HabitColor =
   | '#F44336' // Red

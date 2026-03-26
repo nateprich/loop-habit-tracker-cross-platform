@@ -15,8 +15,10 @@ export default function CreateHabitScreen() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedColor, setSelectedColor] = useState<HabitColor>(HABIT_COLORS[0]);
-  const [frequency, setFrequency] = useState<'daily' | 'weekly'>('daily');
+  const [frequency, setFrequency] = useState<'daily' | 'weekly' | 'everyXDays' | 'xPerMonth'>('daily');
   const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [intervalDays, setIntervalDays] = useState('2');
+  const [timesPerMonth, setTimesPerMonth] = useState('10');
   const [habitType, setHabitType] = useState<HabitType>('boolean');
   const [targetValue, setTargetValue] = useState('');
   const [unit, setUnit] = useState('');
@@ -27,11 +29,15 @@ export default function CreateHabitScreen() {
     setSaving(true);
     try {
       const parsedTarget = parseFloat(targetValue);
+      const freq = frequency === 'daily' ? { type: 'daily' as const }
+        : frequency === 'weekly' ? { type: 'weekly' as const, days: selectedDays }
+        : frequency === 'everyXDays' ? { type: 'everyXDays' as const, intervalDays: Math.max(2, parseInt(intervalDays) || 2) }
+        : { type: 'xPerMonth' as const, timesPerMonth: Math.max(1, parseInt(timesPerMonth) || 1) };
       await createHabit(
         name.trim(),
         description.trim(),
         selectedColor,
-        frequency === 'daily' ? { type: 'daily' } : { type: 'weekly', days: selectedDays },
+        freq,
         habitType,
         habitType === 'numeric' && !isNaN(parsedTarget) ? parsedTarget : null,
         habitType === 'numeric' ? unit.trim() : ''
@@ -91,7 +97,7 @@ export default function CreateHabitScreen() {
       </View>
 
       <Text style={styles.label}>Type</Text>
-      <View style={styles.frequencyRow}>
+      <View style={styles.frequencyGrid}>
         <Pressable
           style={[
             styles.frequencyOption,
@@ -161,37 +167,30 @@ export default function CreateHabitScreen() {
       )}
 
       <Text style={styles.label}>Frequency</Text>
-      <View style={styles.frequencyRow}>
-        <Pressable
-          style={[
-            styles.frequencyOption,
-            { borderColor: colors.border },
-            frequency === 'daily' && { backgroundColor: colors.tint, borderColor: colors.tint },
-          ]}
-          onPress={() => setFrequency('daily')}
-        >
-          <Text style={[
-            styles.frequencyText,
-            frequency === 'daily' && styles.frequencyTextSelected,
-          ]}>
-            Every day
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.frequencyOption,
-            { borderColor: colors.border },
-            frequency === 'weekly' && { backgroundColor: colors.tint, borderColor: colors.tint },
-          ]}
-          onPress={() => setFrequency('weekly')}
-        >
-          <Text style={[
-            styles.frequencyText,
-            frequency === 'weekly' && styles.frequencyTextSelected,
-          ]}>
-            Specific days
-          </Text>
-        </Pressable>
+      <View style={styles.frequencyGrid}>
+        {([
+          ['daily', 'Every day'],
+          ['weekly', 'Specific days'],
+          ['everyXDays', 'Every X days'],
+          ['xPerMonth', 'X per month'],
+        ] as const).map(([key, label]) => (
+          <Pressable
+            key={key}
+            style={[
+              styles.frequencyOption,
+              { borderColor: colors.border },
+              frequency === key && { backgroundColor: colors.tint, borderColor: colors.tint },
+            ]}
+            onPress={() => setFrequency(key)}
+          >
+            <Text style={[
+              styles.frequencyText,
+              frequency === key && styles.frequencyTextSelected,
+            ]}>
+              {label}
+            </Text>
+          </Pressable>
+        ))}
       </View>
 
       {frequency === 'weekly' && (
@@ -224,6 +223,31 @@ export default function CreateHabitScreen() {
               </Pressable>
             );
           })}
+        </View>
+      )}
+
+      {frequency === 'everyXDays' && (
+        <View style={styles.freqParamRow}>
+          <Text style={[styles.freqParamLabel, { color: colors.text }]}>Every</Text>
+          <TextInput
+            style={[styles.freqParamInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+            value={intervalDays}
+            onChangeText={setIntervalDays}
+            keyboardType="numeric"
+          />
+          <Text style={[styles.freqParamLabel, { color: colors.text }]}>days</Text>
+        </View>
+      )}
+
+      {frequency === 'xPerMonth' && (
+        <View style={styles.freqParamRow}>
+          <TextInput
+            style={[styles.freqParamInput, { backgroundColor: colors.card, color: colors.text, borderColor: colors.border }]}
+            value={timesPerMonth}
+            onChangeText={setTimesPerMonth}
+            keyboardType="numeric"
+          />
+          <Text style={[styles.freqParamLabel, { color: colors.text }]}>times per month</Text>
         </View>
       )}
 
@@ -284,16 +308,17 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
   },
-  frequencyRow: {
+  frequencyGrid: {
     flexDirection: 'row',
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 8,
     paddingVertical: 4,
   },
   frequencyOption: {
-    flex: 1,
     borderWidth: 1,
     borderRadius: 8,
-    padding: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     alignItems: 'center',
   },
   frequencyText: {
@@ -320,6 +345,24 @@ const styles = StyleSheet.create({
   dayText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  freqParamRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  freqParamLabel: {
+    fontSize: 15,
+  },
+  freqParamInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 18,
+    fontWeight: '600',
+    width: 60,
+    textAlign: 'center',
   },
   numericFields: {
     marginTop: 4,

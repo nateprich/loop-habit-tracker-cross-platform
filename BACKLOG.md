@@ -18,9 +18,10 @@
 12. CSV import (paste CSV in Settings > Import CSV)
 13. Full 20-color palette (added Amber, Cyan, Lime, Deep Orange, Yellow, Light Blue, Grey, Black)
 
+14. Sorting options (manual, name, color, score, streak — pill picker in toolbar)
+15. Flexible frequencies (every X days, X times per month — in create/edit screens)
+
 ## Remaining — Medium Priority
-14. Sorting options — Sort by name, color, score, status, manually
-15. Flexible frequencies — "Every X days", "X times per month"
 16. Score chart — Line chart of habit score over weeks/months (getHabitScoreHistory backend exists)
 17. Streak history chart — Visual timeline of all streaks over time
 18. Frequency histogram — Chart showing completion by day of week

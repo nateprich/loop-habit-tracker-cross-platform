@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { StyleSheet, FlatList, Pressable, ActivityIndicator, Modal, TextInput, ScrollView, Alert } from 'react-native';
 import { Link, router } from 'expo-router';
 import Svg, { Circle } from 'react-native-svg';
@@ -11,6 +11,15 @@ import { getLastNDates } from '@/database/completions';
 import { Habit } from '@/types/habit';
 
 const VISIBLE_DAYS = 30;
+
+type SortOption = 'manual' | 'name' | 'color' | 'score' | 'streak';
+const SORT_LABELS: Record<SortOption, string> = {
+  manual: 'Manual',
+  name: 'Name',
+  color: 'Color',
+  score: 'Score',
+  streak: 'Streak',
+};
 const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -358,6 +367,28 @@ export default function HabitsScreen() {
   const dates = getLastNDates(VISIBLE_DAYS);
   const headerScrollRef = useRef<ScrollView>(null);
   const [reorderMode, setReorderMode] = useState(false);
+  const [sortBy, setSortBy] = useState<SortOption>('manual');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+
+  const sortedHabits = useMemo(() => {
+    if (sortBy === 'manual') return habits;
+    const sorted = [...habits];
+    switch (sortBy) {
+      case 'name':
+        sorted.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      case 'color':
+        sorted.sort((a, b) => a.color.localeCompare(b.color));
+        break;
+      case 'score':
+        sorted.sort((a, b) => b.score - a.score);
+        break;
+      case 'streak':
+        sorted.sort((a, b) => b.streak - a.streak);
+        break;
+    }
+    return sorted;
+  }, [habits, sortBy]);
 
   const moveHabit = useCallback((index: number, direction: -1 | 1) => {
     const newIndex = index + direction;
@@ -417,14 +448,36 @@ export default function HabitsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Reorder toggle */}
+      {/* Toolbar: Sort + Reorder */}
       {habits.length > 1 && (
-        <View style={[styles.reorderBar, { borderBottomColor: colors.border }]}>
-          <Pressable onPress={() => setReorderMode(!reorderMode)}>
-            <Text style={[styles.reorderBtn, { color: colors.tint }]}>
+        <View style={[styles.toolbar, { borderBottomColor: colors.border }]}>
+          <Pressable onPress={() => setShowSortMenu(!showSortMenu)} style={styles.toolbarBtn}>
+            <Text style={[styles.toolbarBtnText, { color: colors.tint }]}>
+              Sort: {SORT_LABELS[sortBy]}
+            </Text>
+          </Pressable>
+          <Pressable onPress={() => { setReorderMode(!reorderMode); setSortBy('manual'); }} style={styles.toolbarBtn}>
+            <Text style={[styles.toolbarBtnText, { color: colors.tint }]}>
               {reorderMode ? 'Done' : 'Reorder'}
             </Text>
           </Pressable>
+        </View>
+      )}
+
+      {/* Sort picker */}
+      {showSortMenu && (
+        <View style={[styles.sortMenu, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {(Object.keys(SORT_LABELS) as SortOption[]).map((opt) => (
+            <Pressable
+              key={opt}
+              style={[styles.sortOption, sortBy === opt && { backgroundColor: colors.tint + '20' }]}
+              onPress={() => { setSortBy(opt); setShowSortMenu(false); setReorderMode(false); }}
+            >
+              <Text style={[styles.sortOptionText, { color: sortBy === opt ? colors.tint : colors.text }]}>
+                {SORT_LABELS[opt]}
+              </Text>
+            </Pressable>
+          ))}
         </View>
       )}
 
@@ -451,14 +504,14 @@ export default function HabitsScreen() {
 
       {/* Habit list */}
       <FlatList
-        data={habits}
+        data={sortedHabits}
         keyExtractor={(item) => item.id}
         renderItem={({ item, index }) =>
           reorderMode ? (
             <ReorderRow
               habit={item}
               index={index}
-              total={habits.length}
+              total={sortedHabits.length}
               onMoveUp={() => moveHabit(index, -1)}
               onMoveDown={() => moveHabit(index, 1)}
               colors={colors}
@@ -634,16 +687,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  reorderBar: {
+  toolbar: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  reorderBtn: {
-    fontSize: 14,
+  toolbarBtn: {
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  toolbarBtnText: {
+    fontSize: 13,
     fontWeight: '600',
+  },
+  sortMenu: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    gap: 4,
+  },
+  sortOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  sortOptionText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   reorderRow: {
     flexDirection: 'row',

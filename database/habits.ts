@@ -13,6 +13,10 @@ function frequencyToDb(freq: HabitFrequency): { type: string; days: string | nul
       return { type: 'weekly', days: JSON.stringify(freq.days), timesPerWeek: null };
     case 'xPerWeek':
       return { type: 'xPerWeek', days: null, timesPerWeek: freq.timesPerWeek };
+    case 'everyXDays':
+      return { type: 'everyXDays', days: null, timesPerWeek: freq.intervalDays };
+    case 'xPerMonth':
+      return { type: 'xPerMonth', days: null, timesPerWeek: freq.timesPerMonth };
   }
 }
 
@@ -22,6 +26,10 @@ function frequencyFromDb(type: string, days: string | null, timesPerWeek: number
       return { type: 'weekly', days: days ? JSON.parse(days) : [] };
     case 'xPerWeek':
       return { type: 'xPerWeek', timesPerWeek: timesPerWeek ?? 1 };
+    case 'everyXDays':
+      return { type: 'everyXDays', intervalDays: timesPerWeek ?? 2 };
+    case 'xPerMonth':
+      return { type: 'xPerMonth', timesPerMonth: timesPerWeek ?? 1 };
     default:
       return { type: 'daily' };
   }
